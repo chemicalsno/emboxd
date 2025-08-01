@@ -22,8 +22,10 @@ RUN apt-get update && apt-get install -y \
     libxtst6 lsb-release wget xdg-utils && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Firefox browser for Playwright
-RUN playwright install firefox --with-deps
+# Install Firefox browser and drivers for Playwright
+RUN playwright install firefox --with-deps && \
+    playwright install && \
+    ls -la $PLAYWRIGHT_BROWSERS_PATH
 
 # Copy source code
 COPY . .

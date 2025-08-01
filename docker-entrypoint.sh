@@ -25,16 +25,25 @@ which playwright || go install github.com/playwright-community/playwright-go/cmd
 export PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_BROWSERS_PATH:-/root/.cache/ms-playwright}
 echo "PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH"
 
-echo "Installing Firefox browser for Playwright..."
-if ! playwright install firefox --with-deps; then
-  echo "ERROR: Failed to install Firefox browser for Playwright"
-  # Continue anyway - the directory might be pre-populated from a volume mount
+echo "Installing Firefox browser and drivers for Playwright..."
+# Force reinstall the drivers to fix the common "please install the driver" error
+if ! playwright install firefox --with-deps && playwright install; then
+  echo "ERROR: Failed to install Firefox browser and drivers for Playwright"
+  exit 1
 fi
 
 echo "Checking for Firefox installation..."
 if ! ls -la $PLAYWRIGHT_BROWSERS_PATH 2>/dev/null; then
   echo "WARNING: No browser cache found at $PLAYWRIGHT_BROWSERS_PATH"
 fi
+
+# Verify the driver files exist
+echo "Checking for Playwright drivers..."
+if [[ ! -d "$PLAYWRIGHT_BROWSERS_PATH" ]]; then
+  echo "ERROR: Playwright browser directory doesn't exist"
+  mkdir -p $PLAYWRIGHT_BROWSERS_PATH
+fi
+ls -la $PLAYWRIGHT_BROWSERS_PATH
 
 # Final startup
 echo "=============== Starting EmBoxd ==============="
