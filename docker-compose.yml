@@ -10,10 +10,12 @@ services:
       - ./config:/config  # Mount local config directory
       - ./logs:/logs      # Mount local logs directory
       - ./data:/data      # Mount local data directory
+      - playwright-cache:/root/.cache/ms-playwright  # Persist Playwright browser installations
     environment:
       - TZ=UTC            # Set your timezone here, e.g., America/New_York
       - HISTORY_SIZE=100  # Number of events to keep in history
       - LOG_JSON=false    # Set to true for JSON formatted logs
+      - LOG_DIR=/logs     # Explicitly set log directory to absolute path
       # - LOG_LEVEL=info  # Log level (info, debug, warn, error)
     restart: unless-stopped
     healthcheck:
@@ -29,3 +31,8 @@ services:
       - "com.github.emboxd.description=Letterboxd integration for Plex and Emby"
       - "com.github.emboxd.version=latest"
       - "com.github.emboxd.url=https://github.com/yourusername/emboxd"
+
+volumes:
+  playwright-cache:
+    # Using a named volume to persist the Playwright browser installations
+    # This prevents having to re-download browsers after container recreation
