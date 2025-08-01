@@ -1,11 +1,10 @@
 package letterboxd
 
 import (
-	"fmt"
 	"log/slog"
-)
 
-import "github.com/playwright-community/playwright-go"
+	"github.com/playwright-community/playwright-go"
+)
 
 var browser playwright.Browser
 
@@ -51,7 +50,7 @@ type User struct {
 func (l User) newPage(url string) playwright.Page {
 	var page, pageErr = l.context.NewPage()
 	if pageErr != nil {
-		slog.Error("Failed to create new page", 
+		slog.Error("Failed to create new page",
 			slog.String("error", pageErr.Error()),
 			slog.String("username", l.username),
 			slog.String("url", url))
@@ -62,7 +61,7 @@ func (l User) newPage(url string) playwright.Page {
 
 	if _, err := page.Goto(url); err != nil {
 		// Acceptable due to ad loading or other non-critical resources
-		slog.Warn("Page took too long to load", 
+		slog.Warn("Page took too long to load",
 			slog.String("url", url),
 			slog.String("error", err.Error()))
 	}

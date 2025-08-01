@@ -1,7 +1,6 @@
 package letterboxd
 
 import (
-	"fmt"
 	"log/slog"
 	"time"
 )
