@@ -237,6 +237,11 @@ EmBoxd provides the following API endpoints:
   - Recent events processed by the service
   - Status of each event (success, error)
   - Details about media, user, and timing
+- `/metrics` - Application metrics endpoint that provides:
+  - Request counts and performance metrics
+  - Memory usage statistics
+  - Webhook statistics by source
+  - Average response times by endpoint
 - `/emby/webhook` - Webhook receiver for Emby
 - `/plex/webhook` - Webhook receiver for Plex
 
@@ -249,6 +254,8 @@ EmBoxd includes several advanced features for improved reliability:
 - Multiple log levels (info, debug, warn, error)
 - Optional JSON output format for log aggregation
 - Log file rotation with configurable retention
+- Request/response logging with detailed metrics
+- Automatic path-based log filtering for sensitive paths
 
 #### Error Handling & Recovery
 - Robust error classification system

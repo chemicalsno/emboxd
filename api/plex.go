@@ -78,6 +78,10 @@ func parsePlexImdbId(guid string) string {
 
 func (a *Api) postPlexWebhook(context *gin.Context) {
 	startTime := time.Now()
+
+	// Track the webhook for metrics
+	a.metrics.TrackWebhook("plex")
+
 	var plexNotif plexNotification
 	if err := context.BindJSON(&plexNotif); err != nil {
 		slog.Error("Malformed Plex webhook notification payload")
