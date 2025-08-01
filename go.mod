@@ -1,4 +1,4 @@
-module github.com/computer-geek64/emboxd
+module emboxd
 
 go 1.22.9
 

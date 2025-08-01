@@ -8,78 +8,158 @@ import (
 	"time"
 )
 
-func (u User) SetFilmWatched(imdbId string, watched bool) {
-	var url = fmt.Sprintf("https://letterboxd.com/imdb/%s", imdbId)
-	var page = u.newPage(url)
-	defer page.Close()
+func (u User) SetFilmWatched(imdbId string, watched bool) error {
+	config := DefaultRetryConfig()
+	op := fmt.Sprintf("SetFilmWatched(imdbId=%s, watched=%t)", imdbId, watched)
 
-	// Reauthenticate if necessary
-	if !u.isLoggedIn(page) {
-		slog.Warn("Not logged in, authenticating...")
+	return WithRetry(op, func() error {
+		var url = fmt.Sprintf("https://letterboxd.com/imdb/%s", imdbId)
+		var page = u.newPage(url)
+		defer page.Close()
 
-		u.Login()
-		if _, err := page.Reload(); err != nil {
-			slog.Warn(fmt.Sprintf("Page %s took too long to load", url))
+		// Reauthenticate if necessary
+		if !u.isLoggedIn(page) {
+			slog.Warn("Not logged in, authenticating...")
+
+			loginErr := u.Login()
+			if loginErr != nil {
+				return &LetterboxdError{
+					Type:          ErrorTypeAuth,
+					OriginalError: loginErr,
+					Context:       map[string]interface{}{"imdbId": imdbId},
+					Retryable:     false,
+				}
+			}
+
+			if _, err := page.Reload(); err != nil {
+				return &LetterboxdError{
+					Type:          ErrorTypeNetwork,
+					OriginalError: err,
+					Context:       map[string]interface{}{"url": url, "imdbId": imdbId},
+					Retryable:     true,
+				}
+			}
 		}
-	}
 
-	// Allow watched information to populate
-	time.Sleep(3 * time.Second)
+		// Allow watched information to populate
+		time.Sleep(3 * time.Second)
 
-	var watchedLocator = page.Locator("span.action-large.-watch .action.-watch")
-	var classes, watchedLocatorErr = watchedLocator.GetAttribute("class")
-	if watchedLocatorErr != nil {
-		panic(watchedLocatorErr)
-	}
+		// Find the watched button
+		var watchedLocator = page.Locator("span.action-large.-watch .action.-watch")
+		var classes, watchedLocatorErr = watchedLocator.GetAttribute("class")
+		if watchedLocatorErr != nil {
+			return &LetterboxdError{
+				Type:          ErrorTypeUI,
+				OriginalError: watchedLocatorErr,
+				Context:       map[string]interface{}{"imdbId": imdbId, "selector": "span.action-large.-watch .action.-watch"},
+				Retryable:     true,
+			}
+		}
 
-	if slices.Contains(strings.Split(classes, " "), "-on") == watched {
-		// Film already marked with desired watch state
-		slog.Info(fmt.Sprintf("Film %s is already marked as watched = %t", imdbId, watched))
-	} else {
+		if slices.Contains(strings.Split(classes, " "), "-on") == watched {
+			// Film already marked with desired watch state
+			slog.Info(fmt.Sprintf("Film %s is already marked as watched = %t", imdbId, watched))
+			return nil
+		} 
+			
 		// Toggle film watched status
 		if err := watchedLocator.Click(); err != nil {
-			panic(err)
+			return &LetterboxdError{
+				Type:          ErrorTypeUI,
+				OriginalError: err,
+				Context:       map[string]interface{}{"imdbId": imdbId, "action": "click watched button"},
+				Retryable:     true,
+			}
 		}
 		time.Sleep(3 * time.Second)
-	}
+		
+		return nil
+	}, config)
 }
 
-func (u User) LogFilmWatched(imdbId string, date ...time.Time) {
+func (u User) LogFilmWatched(imdbId string, date ...time.Time) error {
 	if len(date) == 0 {
 		date = append(date, time.Now())
 	}
 
-	var url = fmt.Sprintf("https://letterboxd.com/imdb/%s", imdbId)
-	var page = u.newPage(url)
-	defer page.Close()
+	config := DefaultRetryConfig()
+	op := fmt.Sprintf("LogFilmWatched(imdbId=%s, date=%s)", imdbId, date[0].Format(time.DateOnly))
 
-	// Reauthenticate if necessary
-	if !u.isLoggedIn(page) {
-		slog.Warn("Not logged in, authenticating...")
+	return WithRetry(op, func() error {
+		var url = fmt.Sprintf("https://letterboxd.com/imdb/%s", imdbId)
+		var page = u.newPage(url)
+		defer page.Close()
 
-		u.Login()
-		if _, err := page.Reload(); err != nil {
-			slog.Warn(fmt.Sprintf("Page %s took too long to load", url))
+		// Reauthenticate if necessary
+		if !u.isLoggedIn(page) {
+			slog.Warn("Not logged in, authenticating...")
+
+			loginErr := u.Login()
+			if loginErr != nil {
+				return &LetterboxdError{
+					Type:          ErrorTypeAuth,
+					OriginalError: loginErr,
+					Context:       map[string]interface{}{"imdbId": imdbId},
+					Retryable:     false,
+				}
+			}
+			
+			if _, err := page.Reload(); err != nil {
+				return &LetterboxdError{
+					Type:          ErrorTypeNetwork,
+					OriginalError: err,
+					Context:       map[string]interface{}{"url": url, "imdbId": imdbId},
+					Retryable:     true,
+				}
+			}
 		}
-	}
 
-	if err := page.Locator("button.add-this-film").Click(); err != nil {
-		panic(err)
-	}
+		// Click the 'Add to diary' button
+		if err := page.Locator("button.add-this-film").Click(); err != nil {
+			return &LetterboxdError{
+				Type:          ErrorTypeUI,
+				OriginalError: err,
+				Context:       map[string]interface{}{"imdbId": imdbId, "selector": "button.add-this-film"},
+				Retryable:     true,
+			}
+		}
 
-	// Wait for form to load
-	var saveLocator = page.Locator("div#diary-entry-form-modal button.button.-action.button-action")
-	if err := saveLocator.WaitFor(); err != nil {
-		panic(err)
-	}
+		// Wait for form to load
+		var saveLocator = page.Locator("div#diary-entry-form-modal button.button.-action.button-action")
+		if err := saveLocator.WaitFor(); err != nil {
+			return &LetterboxdError{
+				Type:          ErrorTypeTimeout,
+				OriginalError: err,
+				Context: map[string]interface{}{
+					"imdbId": imdbId,
+					"selector": "div#diary-entry-form-modal button.button.-action.button-action",
+					"action": "wait for form",
+				},
+				Retryable: true,
+			}
+		}
 
-	// Fill form and save log entry
-	var javascriptSetDate = fmt.Sprintf("document.querySelector('input#frm-viewing-date-string').value = '%s'", date[0].Format(time.DateOnly))
-	if _, err := page.Evaluate(javascriptSetDate, nil); err != nil {
-		panic(err)
-	}
-	if err := saveLocator.Click(); err != nil {
-		panic(err)
-	}
-	time.Sleep(3 * time.Second)
+		// Fill form and save log entry
+		var javascriptSetDate = fmt.Sprintf("document.querySelector('input#frm-viewing-date-string').value = '%s'", date[0].Format(time.DateOnly))
+		if _, err := page.Evaluate(javascriptSetDate, nil); err != nil {
+			return &LetterboxdError{
+				Type:          ErrorTypeUI,
+				OriginalError: err,
+				Context:       map[string]interface{}{"imdbId": imdbId, "action": "set date"},
+				Retryable:     true,
+			}
+		}
+		
+		if err := saveLocator.Click(); err != nil {
+			return &LetterboxdError{
+				Type:          ErrorTypeUI,
+				OriginalError: err,
+				Context:       map[string]interface{}{"imdbId": imdbId, "action": "save diary entry"},
+				Retryable:     true,
+			}
+		}
+		
+		time.Sleep(3 * time.Second)
+		return nil
+	}, config)
 }

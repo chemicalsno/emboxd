@@ -51,12 +51,20 @@ type User struct {
 func (l User) newPage(url string) playwright.Page {
 	var page, pageErr = l.context.NewPage()
 	if pageErr != nil {
+		slog.Error("Failed to create new page", 
+			slog.String("error", pageErr.Error()),
+			slog.String("username", l.username),
+			slog.String("url", url))
+		// Instead of panicking, we return a nil page, and callers will need to check
+		// But since this is a major architectural change, we'll keep the panic for now
 		panic(pageErr)
 	}
 
 	if _, err := page.Goto(url); err != nil {
-		// Acceptable to due ad loading
-		slog.Warn(fmt.Sprintf("Page %s took too long to load", url))
+		// Acceptable due to ad loading or other non-critical resources
+		slog.Warn("Page took too long to load", 
+			slog.String("url", url),
+			slog.String("error", err.Error()))
 	}
 
 	return page

@@ -1,0 +1,21 @@
+{
+  "event": "media.play",
+  "Account": {
+    "id": "12345",
+    "title": "JohnDoe"
+  },
+  "Metadata": {
+    "type": "movie",
+    "title": "The Matrix",
+    "guid": "imdb://tt0133093",
+    "duration": 8160000,
+    "viewOffset": 0
+  },
+  "Player": {
+    "state": "playing"
+  },
+  "Server": {
+    "title": "My Plex Server"
+  },
+  "EventTime": 1688158800
+}

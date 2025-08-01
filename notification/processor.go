@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-import "github.com/computer-geek64/emboxd/letterboxd"
+import "emboxd/letterboxd"
 
 // Watched percentage of total runtime to log movie as actually watched
 const _MIN_WATCHED_PERCENTAGE uint = 70

@@ -1,0 +1,21 @@
+{
+  "event": "media.play",
+  "Account": {
+    "id": "12345",
+    "title": "JohnDoe"
+  },
+  "Metadata": {
+    "type": "movie",
+    "title": "Inception",
+    "guid": "tmdb://27205",
+    "duration": 8880000,
+    "viewOffset": 0
+  },
+  "Player": {
+    "state": "playing"
+  },
+  "Server": {
+    "title": "My Plex Server"
+  },
+  "EventTime": 1688161000
+}

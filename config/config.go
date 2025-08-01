@@ -17,6 +17,7 @@ type emby struct {
 
 type plex struct {
 	Username string `yaml:"username"`
+	ID       string `yaml:"id"`
 }
 
 type user struct {

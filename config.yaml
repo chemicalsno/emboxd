@@ -1,6 +1,9 @@
 users:
-  - emby:
-      username: john
-    letterboxd:
+  - letterboxd:
       username: john_doe
       password: 'password'
+    emby:
+      username: john
+    plex:
+      username: John
+      id: "12345"

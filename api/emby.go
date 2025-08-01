@@ -8,7 +8,7 @@ import (
 import "github.com/gin-gonic/gin"
 
 import (
-	"github.com/computer-geek64/emboxd/notification"
+	"emboxd/notification"
 )
 
 const _EMBY_TIME_LAYOUT string = "2006-01-02T15:04:05.0000000Z"

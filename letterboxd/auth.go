@@ -10,47 +10,103 @@ import (
 import "github.com/playwright-community/playwright-go"
 
 func (u User) isLoggedIn(page ...playwright.Page) bool {
+	var shouldClosePage bool
+	var activePage playwright.Page
+	
 	if len(page) == 0 {
 		// Create new page
-		page = append(page, u.newPage("https://letterboxd.com"))
-		defer page[0].Close()
+		activePage = u.newPage("https://letterboxd.com")
+		shouldClosePage = true
+	} else {
+		activePage = page[0]
+	}
+	
+	if shouldClosePage {
+		defer activePage.Close()
 	}
 
-	var classes, err = page[0].Locator("body").GetAttribute("class")
+	var classes, err = activePage.Locator("body").GetAttribute("class")
 	if err != nil {
-		panic(err)
+		slog.Error("Failed to get body class attribute",
+			slog.String("error", err.Error()),
+			slog.String("username", u.username))
+		return false
 	}
 
 	return slices.Contains(strings.Split(classes, " "), "logged-in")
 }
 
-func (u User) Login() {
-	var page = u.newPage("https://letterboxd.com/sign-in/")
-	defer page.Close()
+func (u User) Login() error {
+	config := DefaultRetryConfig()
+	op := fmt.Sprintf("Login(username=%s)", u.username)
 
-	if page.URL() == "https://letterboxd.com" {
-		slog.Warn("Already logged in")
-		return
-	}
+	return WithRetry(op, func() error {
+		var page = u.newPage("https://letterboxd.com/sign-in/")
+		defer page.Close()
 
-	// Fill out login form
-	if err := page.Locator("input#field-username").Fill(u.username); err != nil {
-		panic(err)
-	}
-	if err := page.Locator("input#field-password").Fill(u.password); err != nil {
-		panic(err)
-	}
-	if err := page.Locator("input.js-remember").Check(); err != nil {
-		panic(err)
-	}
-	if err := page.Locator("div.formbody > div.formrow > button[type=submit]").Click(); err != nil {
-		panic(err)
-	}
+		if page.URL() == "https://letterboxd.com" {
+			slog.Info("Already logged in")
+			return nil
+		}
 
-	// Wait for logged in status
-	if err := page.Locator("body.logged-in").WaitFor(); err == nil {
+		// Fill out login form
+		if err := page.Locator("input#field-username").Fill(u.username); err != nil {
+			return &LetterboxdError{
+				Type:          ErrorTypeUI,
+				OriginalError: err,
+				Context:       map[string]interface{}{"username": u.username, "selector": "input#field-username"},
+				Retryable:     true,
+			}
+		}
+		
+		if err := page.Locator("input#field-password").Fill(u.password); err != nil {
+			return &LetterboxdError{
+				Type:          ErrorTypeUI,
+				OriginalError: err,
+				Context:       map[string]interface{}{"username": u.username, "selector": "input#field-password"},
+				Retryable:     true,
+			}
+		}
+		
+		if err := page.Locator("input.js-remember").Check(); err != nil {
+			// Non-critical error, continue with login
+			slog.Warn("Failed to check 'remember me' checkbox", 
+				slog.String("error", err.Error()),
+				slog.String("username", u.username))
+		}
+		
+		if err := page.Locator("div.formbody > div.formrow > button[type=submit]").Click(); err != nil {
+			return &LetterboxdError{
+				Type:          ErrorTypeUI,
+				OriginalError: err,
+				Context:       map[string]interface{}{"username": u.username, "selector": "button[type=submit]"},
+				Retryable:     true,
+			}
+		}
+
+		// Wait for logged in status
+		if err := page.Locator("body.logged-in").WaitFor(); err != nil {
+			// Check if there's a login error message
+			errorLocator := page.Locator("div.form-error")
+			if errorVisible, _ := errorLocator.IsVisible(); errorVisible {
+				errorText, _ := errorLocator.TextContent()
+				return &LetterboxdError{
+					Type:          ErrorTypeAuth,
+					OriginalError: fmt.Errorf("login failed: %s", errorText),
+					Context:       map[string]interface{}{"username": u.username, "error_message": errorText},
+					Retryable:     false, // Auth errors are not retryable
+				}
+			}
+			
+			return &LetterboxdError{
+				Type:          ErrorTypeTimeout,
+				OriginalError: err,
+				Context:       map[string]interface{}{"username": u.username, "selector": "body.logged-in"},
+				Retryable:     true,
+			}
+		}
+
 		slog.Info(fmt.Sprintf("Logged in as %s", u.username))
-	} else {
-		panic(err)
-	}
+		return nil
+	}, config)
 }

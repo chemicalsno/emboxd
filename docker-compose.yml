@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  emboxd:
+    build: .
+    # Alternatively, once you have a Docker image published:
+    # image: yourusername/emboxd:latest
+    container_name: emboxd
+    ports:
+      - "8080:80"  # Change 8080 to whatever external port you prefer
+    volumes:
+      - ./config:/config  # Mount local config directory
+      - ./logs:/logs      # Mount local logs directory
+      - ./data:/data      # Mount local data directory
+    environment:
+      - TZ=UTC            # Set your timezone here, e.g., America/New_York
+      - HISTORY_SIZE=100  # Number of events to keep in history
+      - LOG_JSON=false    # Set to true for JSON formatted logs
+      # - LOG_LEVEL=info  # Log level (info, debug, warn, error)
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/health"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    # Uncomment and adjust if you need specific resource constraints
+    # mem_limit: 512m
+    # cpus: 0.5
+    labels:
+      - "com.github.emboxd.description=Letterboxd integration for Plex and Emby"
+      - "com.github.emboxd.version=latest"
+      - "com.github.emboxd.url=https://github.com/yourusername/emboxd"
