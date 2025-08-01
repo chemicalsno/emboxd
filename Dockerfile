@@ -23,16 +23,24 @@ RUN apt-get update && apt-get install -y \
     rm -rf /var/lib/apt/lists/*
 
 # Install Firefox browser and drivers for Playwright
-RUN playwright install firefox --with-deps && \
-    playwright install && \
-    ls -la $PLAYWRIGHT_BROWSERS_PATH && \
+# Following recommended approach from official docs: https://github.com/playwright-community/playwright-go
+RUN go install github.com/playwright-community/playwright-go/cmd/playwright@v0.4902.0 && \
+    playwright install firefox --with-deps && \
+    # Additional redundant driver installation for version matching
     cd /tmp && \
+    # Install specific matching playwright version based on go.mod (v0.4902.0 uses playwright v1.49.1)
     npm init -y && \
     npm install playwright@1.49.1 && \
     npx playwright install && \
-    cd $PLAYWRIGHT_BROWSERS_PATH && \
-    ln -sf ./firefox-* ./firefox-1491 && \
-    ls -la
+    # Create directories and symlinks to ensure proper driver detection
+    mkdir -p /root/.cache/ms-playwright && \
+    # Set up proper symlinks and file permissions
+    chmod -R 777 /root/.cache/ms-playwright && \
+    # Create symlinks in alternate paths that playwright-go might check
+    mkdir -p /go/pkg/mod/github.com/playwright-community && \
+    ln -sf /root/.cache/ms-playwright /go/pkg/mod/github.com/playwright-community/playwright-drivers && \
+    # Show results for debugging
+    ls -la /root/.cache/ms-playwright
 
 # Copy source code
 COPY . .

@@ -32,19 +32,34 @@ export PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_BROWSERS_PATH:-/root/.cache/ms-play
 echo "PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH"
 
 echo "Installing Firefox browser and drivers for Playwright..."
-# Force reinstall the drivers with explicit version v1.49.1
+# Use the specifically installed playwright binary that matches the Go module version (v0.4902.0)
 if ! playwright install firefox --with-deps; then
   echo "ERROR: Failed to install Firefox browser"
   exit 1
 fi
 
-# Explicitly install the driver version 1.49.1 required by the library
+# Install the correct driver version for v0.4902.0 (which uses v1.49.1)
 echo "Installing Playwright driver v1.49.1 explicitly..."
 cd /tmp && \
 npm init -y && \
 npm install playwright@1.49.1 && \
-npx playwright install && \
+npx playwright@1.49.1 install --with-deps && \
+# Create backup symlinks in case the detection fails
+mkdir -p /go/pkg/mod/github.com/playwright-community && \
+ln -sf $PLAYWRIGHT_BROWSERS_PATH /go/pkg/mod/github.com/playwright-community/playwright-drivers && \
+# Fix permissions for the cache directory
+chmod -R 777 $PLAYWRIGHT_BROWSERS_PATH && \
 cd - || echo "Failed to return to previous directory"
+
+echo "Verifying Playwright setup..."
+# Check if driver binary is present
+find $PLAYWRIGHT_BROWSERS_PATH -name "*.jar" -o -name "*.exe" | grep -i driver || echo "No driver found. Creating a symlink to ensure driver is found."
+
+# Create additional symlink for the specific version
+if find $PLAYWRIGHT_BROWSERS_PATH -name "firefox-*" -type d | grep -q ""; then
+  mkdir -p $PLAYWRIGHT_BROWSERS_PATH/firefox-1491
+  find $PLAYWRIGHT_BROWSERS_PATH -name "firefox-*" -type d -exec cp -r {}/* $PLAYWRIGHT_BROWSERS_PATH/firefox-1491/ \;
+fi
 
 echo "Checking for Firefox installation..."
 if ! ls -la $PLAYWRIGHT_BROWSERS_PATH 2>/dev/null; then
