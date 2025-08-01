@@ -17,7 +17,7 @@ services:
       # - LOG_LEVEL=info  # Log level (info, debug, warn, error)
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/health"]
+      test: ["CMD", "wget", "-q", "--method=GET", "-O", "/dev/null", "http://localhost:80/health"]
       interval: 1m
       timeout: 10s
       retries: 3

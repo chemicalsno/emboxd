@@ -37,15 +37,15 @@ func (a *Api) getHealth(context *gin.Context) {
 
 	for username, worker := range a.letterboxdWorkers {
 		workerStatus := worker.CheckStatus()
-		
+
 		workerState := LetterboxdWorkerState{
 			Username:    username,
 			Connected:   workerStatus.IsConnected,
 			LastChecked: workerStatus.LastChecked,
 		}
-		
+
 		status.LetterboxdWorkers = append(status.LetterboxdWorkers, workerState)
-		
+
 		if !workerStatus.IsConnected {
 			allConnected = false
 		}
@@ -61,4 +61,8 @@ func (a *Api) getHealth(context *gin.Context) {
 
 func (a *Api) setupHealthRoutes() {
 	a.router.GET("/health", a.getHealth)
+	// Also handle HEAD requests for Docker healthchecks
+	a.router.HEAD("/health", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
 }
