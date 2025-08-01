@@ -124,8 +124,13 @@ To run EmBoxd on an Unraid server:
      - Host path: `/mnt/user/appdata/emboxd/config` → Container path: `/config`
      - Host path: `/mnt/user/appdata/emboxd/logs` → Container path: `/logs`
      - Host path: `/mnt/user/appdata/emboxd/data` → Container path: `/data`
+     - Volume: `playwright-cache` → Container path: `/root/.cache/ms-playwright` (for browser persistence)
    - **Variables**:
      - TZ=Your timezone (e.g., America/New_York)
+     - LOG_DIR=/logs
+     - HISTORY_SIZE=100 (optional)
+     - LOG_JSON=false (optional)
+     - PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
 4. Click "Apply"
 
 Alternatively, you can use the Community Applications plugin and import the docker-compose.yml file.
@@ -264,15 +269,24 @@ EmBoxd includes several advanced features for improved reliability:
 - Detailed error reporting in logs
 
 #### Event History
-- In-memory storage of recent events
-- API endpoint to retrieve event history
-- Detailed status tracking for monitoring
+- In-memory storage of recent events (configurable with `--history-size`)
+- API endpoint to retrieve event history via `/events`
+- Detailed status tracking with timestamps and processing metrics
+- Persistent across restarts when using proper volume mounts
 
 When running with Docker, the image expects the configuration file at `/config/config.yaml`.
 It can be bind-mounted to the container or stored in a volume.
 
 ```sh
-docker run --name=emboxd --restart=unless-stopped -v config.yaml:/config/config.yaml:ro -p 80:80 ghcr.io/computer-geek64/emboxd:latest
+docker run --name=emboxd \
+  --restart=unless-stopped \
+  -v config.yaml:/config/config.yaml:ro \
+  -v ./logs:/logs \
+  -v playwright-cache:/root/.cache/ms-playwright \
+  -e LOG_DIR=/logs \
+  -e PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright \
+  -p 80:80 \
+  ghcr.io/computer-geek64/emboxd:latest
 ```
 
 

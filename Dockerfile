@@ -19,13 +19,20 @@ RUN apt-get update && apt-get install -y \
     libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libx11-6 \
     libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 \
     libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 \
-    libxtst6 lsb-release wget xdg-utils && \
+    libxtst6 lsb-release wget xdg-utils nodejs npm && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Firefox browser and drivers for Playwright
 RUN playwright install firefox --with-deps && \
     playwright install && \
-    ls -la $PLAYWRIGHT_BROWSERS_PATH
+    ls -la $PLAYWRIGHT_BROWSERS_PATH && \
+    cd /tmp && \
+    npm init -y && \
+    npm install playwright@1.49.1 && \
+    npx playwright install && \
+    cd $PLAYWRIGHT_BROWSERS_PATH && \
+    ln -sf ./firefox-* ./firefox-1491 && \
+    ls -la
 
 # Copy source code
 COPY . .
@@ -38,7 +45,10 @@ COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Create directories
-RUN mkdir -p /logs /data /config
+RUN mkdir -p /logs /data /config && \
+    chmod -R 755 /logs && \
+    touch /logs/emboxd.log && \
+    chmod 644 /logs/emboxd.log
 
 # Set the entrypoint and default command
 ENTRYPOINT ["docker-entrypoint.sh"]
