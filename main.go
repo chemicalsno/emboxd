@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"log/slog"
 	"os"
 	"strconv"
 
@@ -18,7 +19,7 @@ func main() {
 	var historySize int
 	var logDir string
 	var logJson bool
-	
+
 	// Command-line flags
 	flag.BoolVar(&verbose, "v", false, "Enable debug logging")
 	flag.BoolVar(&verbose, "verbose", false, "Enable debug logging")
@@ -35,15 +36,15 @@ func main() {
 			historySize = size
 		}
 	}
-	
+
 	if envLogDir := os.Getenv("LOG_DIR"); envLogDir != "" {
 		logDir = envLogDir
 	}
-	
+
 	if envLogJson := os.Getenv("LOG_JSON"); envLogJson != "" {
 		logJson = envLogJson == "true" || envLogJson == "1" || envLogJson == "yes"
 	}
-	
+
 	if envLogLevel := os.Getenv("LOG_LEVEL"); envLogLevel == "debug" {
 		verbose = true
 	}
@@ -54,7 +55,7 @@ func main() {
 		logConfig.LogDirectory = logDir
 	}
 	logConfig.EnableJSON = logJson
-	
+
 	if err := logging.ConfigureEnhanced(logConfig); err != nil {
 		// Fall back to basic logging
 		logging.Configure(verbose)
@@ -87,17 +88,17 @@ func main() {
 	}
 
 	var app = api.New(
-		notificationProcessorByEmbyUsername, 
-		notificationProcessorByPlexUsername, 
+		notificationProcessorByEmbyUsername,
+		notificationProcessorByPlexUsername,
 		notificationProcessorByPlexAccountID,
 		letterboxdWorkers,
 		historySize,
 	)
-	
+
 	// Use graceful shutdown server
 	handler := app.Handler()
 	server := NewGracefulServer(":80", handler)
-	
+
 	if err := server.Start(); err != nil {
 		slog.Error("Server error", slog.String("error", err.Error()))
 		os.Exit(1)

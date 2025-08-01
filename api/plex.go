@@ -6,6 +6,7 @@ import (
 
 	"emboxd/history"
 	"emboxd/notification"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -17,11 +18,11 @@ type plexNotification struct {
 		ID    string `json:"id"`
 	} `json:"Account"`
 	Metadata struct {
-		Type      string `json:"type"`
-		Title     string `json:"title"`
-		Guid      string `json:"guid"`
-		Duration  int64  `json:"duration"`
-		ViewOffset int64 `json:"viewOffset"`
+		Type       string `json:"type"`
+		Title      string `json:"title"`
+		Guid       string `json:"guid"`
+		Duration   int64  `json:"duration"`
+		ViewOffset int64  `json:"viewOffset"`
 	} `json:"Metadata"`
 	Player struct {
 		State string `json:"state"`
@@ -34,13 +35,13 @@ type plexNotification struct {
 
 func parsePlexImdbId(guid string) string {
 	// Handle different GUID formats
-	
+
 	// Direct IMDb format: "imdb://tt1234567"
 	const imdbPrefix = "imdb://"
 	if len(guid) > len(imdbPrefix) && guid[:len(imdbPrefix)] == imdbPrefix {
 		return guid[len(imdbPrefix):]
 	}
-	
+
 	// TMDb format: "tmdb://12345"
 	// In a real implementation, this would do an API lookup to convert TMDb ID to IMDb ID
 	const tmdbPrefix = "tmdb://"
@@ -49,16 +50,16 @@ func parsePlexImdbId(guid string) string {
 		// 1. Extract the TMDb ID: tmdbId := guid[len(tmdbPrefix):]
 		// 2. Use TMDb API to look up the corresponding IMDb ID
 		// 3. Return the IMDb ID
-		
+
 		// TODO: Implement TMDb to IMDb lookup
 		// This would require an API call to something like:
 		// https://api.themoviedb.org/3/movie/{tmdb_id}/external_ids
-		
-		slog.Debug("TMDb ID found but conversion to IMDb ID not yet implemented", 
+
+		slog.Debug("TMDb ID found but conversion to IMDb ID not yet implemented",
 			slog.String("tmdb_guid", guid))
 		return ""
 	}
-	
+
 	// Plex internal format: "plex://movie/5d776b9..."
 	const plexPrefix = "plex://"
 	if len(guid) > len(plexPrefix) && guid[:len(plexPrefix)] == plexPrefix {
@@ -66,12 +67,12 @@ func parsePlexImdbId(guid string) string {
 		// 1. Extract the Plex item ID
 		// 2. Query the Plex API to get external IDs for this item
 		// 3. Return the IMDb ID if available
-		
-		slog.Debug("Plex internal ID found but conversion to IMDb ID not yet implemented", 
+
+		slog.Debug("Plex internal ID found but conversion to IMDb ID not yet implemented",
 			slog.String("plex_guid", guid))
 		return ""
 	}
-	
+
 	return ""
 }
 
@@ -80,7 +81,7 @@ func (a *Api) postPlexWebhook(context *gin.Context) {
 	var plexNotif plexNotification
 	if err := context.BindJSON(&plexNotif); err != nil {
 		slog.Error("Malformed Plex webhook notification payload")
-		
+
 		// Log error event
 		event := &history.Event{
 			ID:           history.GenerateID(),
@@ -92,7 +93,7 @@ func (a *Api) postPlexWebhook(context *gin.Context) {
 			ProcessingMs: int(time.Since(startTime).Milliseconds()),
 		}
 		a.logEvent(event)
-		
+
 		context.AbortWithError(400, err)
 		return
 	}
@@ -111,22 +112,22 @@ func (a *Api) postPlexWebhook(context *gin.Context) {
 	// Prefer using stable Account.id for user matching
 	accountID := plexNotif.Account.ID
 	username := plexNotif.Account.Title
-	
+
 	// Try to match by account ID first, then fall back to username
 	var processor *notification.Processor
 	var ok bool
-	
+
 	if accountID != "" {
 		processor, ok = a.notificationProcessorByPlexAccountID[accountID]
 	}
-	
+
 	// Fall back to username matching if needed
 	if !ok {
 		processor, ok = a.notificationProcessorByPlexUsername[username]
 	}
-	
+
 	if !ok {
-		slog.Debug("No Letterboxd account for Plex user, ignoring notification", 
+		slog.Debug("No Letterboxd account for Plex user, ignoring notification",
 			slog.Group("plex", "user", username, "accountID", accountID))
 		context.AbortWithStatus(200)
 		return
@@ -139,7 +140,6 @@ func (a *Api) postPlexWebhook(context *gin.Context) {
 		Time:     eventTime,
 	}
 
-	var notifEvent interface{}
 	var eventType history.EventType
 
 	switch plexNotif.Event {
@@ -150,7 +150,6 @@ func (a *Api) postPlexWebhook(context *gin.Context) {
 			Runtime:  time.Duration(plexNotif.Metadata.Duration) * time.Millisecond,
 		}
 		processor.ProcessWatchedNotification(watched)
-		notifEvent = watched
 		eventType = history.EventTypeWatched
 	case "media.play", "media.resume":
 		playback := notification.PlaybackNotification{
@@ -160,7 +159,6 @@ func (a *Api) postPlexWebhook(context *gin.Context) {
 			Runtime:  time.Duration(plexNotif.Metadata.Duration) * time.Millisecond,
 		}
 		processor.ProcessPlaybackNotification(playback)
-		notifEvent = playback
 		eventType = history.EventTypePlayback
 	case "media.pause", "media.stop":
 		playback := notification.PlaybackNotification{
@@ -170,7 +168,6 @@ func (a *Api) postPlexWebhook(context *gin.Context) {
 			Runtime:  time.Duration(plexNotif.Metadata.Duration) * time.Millisecond,
 		}
 		processor.ProcessPlaybackNotification(playback)
-		notifEvent = playback
 		eventType = history.EventTypePlayback
 	default:
 		context.AbortWithStatus(400)
@@ -188,7 +185,7 @@ func (a *Api) postPlexWebhook(context *gin.Context) {
 		MediaTitle: plexNotif.Metadata.Title,
 		Status:     history.StatusSuccess,
 		Details: map[string]interface{}{
-			"event": plexNotif.Event,
+			"event":  plexNotif.Event,
 			"server": plexNotif.Server.Title,
 		},
 		ProcessingMs: int(time.Since(startTime).Milliseconds()),

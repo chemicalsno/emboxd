@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"emboxd/history"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,7 +27,7 @@ func (a *Api) getEvents(context *gin.Context) {
 
 	// Get events from store
 	events := a.eventHistory.GetLatest(limit)
-	
+
 	response := EventsResponse{
 		Total:  len(events),
 		Limit:  limit,

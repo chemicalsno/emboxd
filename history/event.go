@@ -1,7 +1,6 @@
 package history
 
 import (
-	"sync"
 	"time"
 
 	"emboxd/notification"
@@ -43,17 +42,17 @@ const (
 
 // Event represents a single event in the history
 type Event struct {
-	ID            string                 `json:"id"`
-	Timestamp     time.Time              `json:"timestamp"`
-	Type          EventType              `json:"type"`
-	Source        Source                 `json:"source"`
-	Username      string                 `json:"username"`
-	MediaID       string                 `json:"media_id,omitempty"`
-	MediaTitle    string                 `json:"media_title,omitempty"`
-	Status        Status                 `json:"status"`
-	ErrorMessage  string                 `json:"error_message,omitempty"`
-	Details       map[string]interface{} `json:"details,omitempty"`
-	ProcessingMs  int                    `json:"processing_ms,omitempty"`
+	ID           string                 `json:"id"`
+	Timestamp    time.Time              `json:"timestamp"`
+	Type         EventType              `json:"type"`
+	Source       Source                 `json:"source"`
+	Username     string                 `json:"username"`
+	MediaID      string                 `json:"media_id,omitempty"`
+	MediaTitle   string                 `json:"media_title,omitempty"`
+	Status       Status                 `json:"status"`
+	ErrorMessage string                 `json:"error_message,omitempty"`
+	Details      map[string]interface{} `json:"details,omitempty"`
+	ProcessingMs int                    `json:"processing_ms,omitempty"`
 }
 
 // FromNotification creates an Event from a notification
