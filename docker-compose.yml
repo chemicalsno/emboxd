@@ -5,7 +5,7 @@ services:
     # image: yourusername/emboxd:latest
     container_name: emboxd
     ports:
-      - "8080:80"  # Change 8080 to whatever external port you prefer
+      - "9001:80"  # Change 8080 to whatever external port you prefer
     volumes:
       - ./config:/config  # Mount local config directory
       - ./logs:/logs      # Mount local logs directory
