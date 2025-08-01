@@ -12,10 +12,11 @@ services:
       - ./data:/data      # Mount local data directory
       - playwright-cache:/root/.cache/ms-playwright  # Persist Playwright browser installations
     environment:
-      - TZ=UTC            # Set your timezone here, e.g., America/New_York
+      - TZ=America/Denver            # Set your timezone here, e.g., America/New_York
       - HISTORY_SIZE=100  # Number of events to keep in history
       - LOG_JSON=false    # Set to true for JSON formatted logs
       - LOG_DIR=/logs     # Explicitly set log directory to absolute path
+      - PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
       # - LOG_LEVEL=info  # Log level (info, debug, warn, error)
     restart: unless-stopped
     healthcheck:
@@ -24,13 +25,23 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
-    # Uncomment and adjust if you need specific resource constraints
-    # mem_limit: 512m
-    # cpus: 0.5
+    # Resource constraints - uncomment and adjust as needed
+    # These help prevent the container from using too many resources
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
     labels:
       - "com.github.emboxd.description=Letterboxd integration for Plex and Emby"
       - "com.github.emboxd.version=latest"
-      - "com.github.emboxd.url=https://github.com/yourusername/emboxd"
+      - "com.github.emboxd.url=https://github.com/computer-geek64/emboxd"
+      - "org.opencontainers.image.authors=EmBoxd Maintainers"
+      - "org.opencontainers.image.source=https://github.com/computer-geek64/emboxd"
+      - "org.label-schema.name=EmBoxd"
+      - "org.label-schema.description=Live sync server for Letterboxd users with self-hosted media platforms"
 
 volumes:
   playwright-cache:
