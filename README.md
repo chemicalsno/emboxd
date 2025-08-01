@@ -103,6 +103,13 @@ cd emboxd
 docker-compose up -d
 ```
 
+For better build performance, you can enable Compose to delegate builds to BuildKit:
+
+```sh
+export COMPOSE_BAKE=true
+docker-compose up -d
+```
+
 ### Unraid Deployment
 
 To run EmBoxd on an Unraid server:
