@@ -6,8 +6,8 @@ WORKDIR /code
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Install Playwright and its dependencies - use specific version
-RUN go install github.com/playwright-community/playwright-go/cmd/playwright@v0.4900.0
+# Install Playwright and its dependencies
+RUN go install github.com/playwright-community/playwright-go/cmd/playwright@latest
 ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
 
 # Install required system dependencies

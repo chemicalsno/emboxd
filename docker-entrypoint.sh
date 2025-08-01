@@ -19,7 +19,7 @@ export PATH=$PATH:/root/go/bin
 # Verify Playwright installation
 echo "=============== Playwright Setup ==============="
 echo "Checking for playwright binary..."
-which playwright || go install github.com/playwright-community/playwright-go/cmd/playwright@v0.4900.0
+which playwright || go install github.com/playwright-community/playwright-go/cmd/playwright@latest
 
 # Set Playwright browser path
 export PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_BROWSERS_PATH:-/root/.cache/ms-playwright}
