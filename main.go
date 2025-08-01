@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
@@ -19,6 +20,7 @@ func main() {
 	var historySize int
 	var logDir string
 	var logJson bool
+	var port string
 
 	// Command-line flags
 	flag.BoolVar(&verbose, "v", false, "Enable debug logging")
@@ -28,6 +30,7 @@ func main() {
 	flag.IntVar(&historySize, "history-size", 100, "Maximum number of events to keep in history")
 	flag.StringVar(&logDir, "log-dir", "", "Directory for log files (empty for stdout only)")
 	flag.BoolVar(&logJson, "log-json", false, "Output logs in JSON format")
+	flag.StringVar(&port, "port", "9001", "Port to listen on")
 	flag.Parse()
 
 	// Environment variable overrides
@@ -47,6 +50,13 @@ func main() {
 
 	if envLogLevel := os.Getenv("LOG_LEVEL"); envLogLevel == "debug" {
 		verbose = true
+	}
+
+	if envPort := os.Getenv("PORT"); envPort != "" {
+		port = envPort
+		fmt.Printf("Using PORT from environment: %s\n", port)
+	} else {
+		fmt.Printf("Using default port: %s\n", port)
 	}
 
 	// Configure enhanced logging
@@ -97,7 +107,7 @@ func main() {
 
 	// Use graceful shutdown server
 	handler := app.Handler()
-	server := NewGracefulServer(":80", handler)
+	server := NewGracefulServer(":"+port, handler)
 
 	if err := server.Start(); err != nil {
 		slog.Error("Server error", slog.String("error", err.Error()))

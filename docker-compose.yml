@@ -4,8 +4,9 @@ services:
     # Alternatively, once you have a Docker image published:
     # image: yourusername/emboxd:latest
     container_name: emboxd
+    network_mode: bridge
     ports:
-      - "9001:80"  # Change 8080 to whatever external port you prefer
+      - "9001:9001"  # Map host port 9001 to container port 9001
     volumes:
       - ./config:/config  # Mount local config directory
       - ./logs:/logs      # Mount local logs directory
@@ -17,10 +18,11 @@ services:
       - LOG_JSON=false    # Set to true for JSON formatted logs
       - LOG_DIR=/logs     # Explicitly set log directory to absolute path
       - PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
+      - PORT=9001        # Port for the application to listen on
       # - LOG_LEVEL=info  # Log level (info, debug, warn, error)
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "--method=GET", "-O", "/dev/null", "http://localhost:80/health"]
+      test: ["CMD", "wget", "-q", "--method=GET", "-O", "/dev/null", "http://localhost:9001/health"]
       interval: 1m
       timeout: 10s
       retries: 3
