@@ -16,10 +16,12 @@ type Status struct {
 func (w *Worker) CheckStatus() Status {
 	// Create a page to check login status
 	var page = w.user.newPage("https://letterboxd.com")
-	defer page.Close()
+	if page != nil {
+		defer page.Close()
+	}
 
-	// Check if the user is logged in
-	isLoggedIn := w.user.isLoggedIn(page)
+	// Check if the user is logged in (page can be nil)
+	isLoggedIn := page != nil && w.user.isLoggedIn(page)
 	
 	status := Status{
 		Username:    w.user.username,
