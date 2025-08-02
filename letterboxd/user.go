@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/playwright-community/playwright-go"
 )
@@ -82,7 +83,7 @@ func init() {
 	var headless = true
 	var launchOptions = playwright.BrowserTypeLaunchOptions{
 		Headless: &headless,
-		Timeout:  playwright.Float(60000), // 60 seconds timeout
+		Timeout:  playwright.Float(120000), // 120 seconds timeout for browser launch
 		Args: []string{
 			"--no-sandbox",
 			"--disable-setuid-sandbox",
@@ -96,7 +97,15 @@ func init() {
 			"--disable-renderer-backgrounding",
 			"--disable-features=TranslateUI",
 			"--disable-ipc-flooding-protection",
+			"--disable-extensions",
+			"--disable-component-extensions-with-background-pages",
+			"--disable-default-apps",
+			"--mute-audio",
+			"--no-default-browser-check",
+			"--ignore-certificate-errors",
+			"--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
 		},
+		IgnoreDefaultArgs: []string{"--enable-automation"},
 	}
 
 	slog.Info("Launching Firefox browser...")
@@ -111,15 +120,25 @@ func init() {
 }
 
 func NewUser(username string, password string, allowRelog bool) User {
+	// Configure browser context with improved options
 	var context, contextErr = browser.NewContext(playwright.BrowserNewContextOptions{
 		Viewport: &playwright.Size{
 			Width:  1920,
 			Height: 1080,
 		},
+		UserAgent: playwright.String("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"),
+		BypassCSP: playwright.Bool(true),  // Bypass Content-Security-Policy
+		IgnoreHttpsErrors: playwright.Bool(true), // Ignore HTTPS errors
+		ExtraHttpHeaders: map[string]string{
+			"Accept-Language": "en-US,en;q=0.9",
+		},
 	})
 	if contextErr != nil {
 		panic(contextErr)
 	}
+
+	// Configure default timeout for context
+	context.SetDefaultTimeout(90000) // 90 seconds
 
 	return User{
 		username,
@@ -147,13 +166,64 @@ func (l User) newPage(url string) playwright.Page {
 		return nil
 	}
 
-	// Increase timeout to 60 seconds for better reliability
-	timeout := 60000.0
-	if _, err := page.Goto(url, playwright.PageGotoOptions{
-		Timeout: &timeout,
-	}); err != nil {
-		// Acceptable due to ad loading or other non-critical resources
-		slog.Warn("Page took too long to load",
+	// Configure page for better reliability
+	// Increase default timeout for all operations
+	page.SetDefaultTimeout(90000) // 90 seconds
+
+	// Add retry logic for page navigation
+	var err error
+	var success bool
+	timeout := 90000.0 // 90 seconds timeout
+	
+	// Try up to 3 times with increasing timeouts
+	for attempt := 1; attempt <= 3; attempt++ {
+		slog.Info("Navigating to page", 
+			slog.String("url", url), 
+			slog.Int("attempt", attempt))
+		
+		// Add wait time between retries
+		if attempt > 1 {
+			slog.Info("Waiting before retry", slog.Int("seconds", attempt))
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
+
+		// Configure navigation options
+		options := playwright.PageGotoOptions{
+			Timeout: &timeout,
+			WaitUntil: playwright.WaitUntilStateNetworkidle, // Wait until network is idle
+		}
+
+		// Attempt navigation
+		response, err := page.Goto(url, options)
+		
+		// Check for success
+		if err == nil && response != nil {
+			status := response.Status()
+			if status >= 200 && status < 400 {
+				slog.Info("Page loaded successfully", 
+					slog.String("url", url),
+					slog.Int("status", status),
+					slog.Int("attempt", attempt))
+				success = true
+				break
+			} else {
+				slog.Warn("Page returned error status", 
+					slog.String("url", url),
+					slog.Int("status", status))
+			}
+		} else if err != nil {
+			slog.Warn("Navigation failed", 
+				slog.String("url", url),
+				slog.String("error", err.Error()),
+				slog.Int("attempt", attempt))
+		}
+		
+		// Increase timeout for next attempt
+		timeout += 30000 // Add 30 seconds for each retry
+	}
+
+	if !success {
+		slog.Error("All navigation attempts failed", 
 			slog.String("url", url),
 			slog.String("error", err.Error()))
 	}
