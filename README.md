@@ -40,7 +40,12 @@
 
 EmBoxd provides live integration with Letterboxd for users of self-hosted media servers.
 It tracks watch activity on the media server and synchronizes Letterboxd user data to match.
-Changes to a movie's played status are reflected in the user's watched films, and movies that are fully played are logged in the user's diary.
+
+**Two Ways to Track Films:**
+
+1. **Mark as Watched** (default): Simply adds the film to your "Watched" list on Letterboxd. The film appears in your watched collection but doesn't create a diary entry or appear prominently in your activity feed.
+
+2. **Log in Diary** (with `log_films: true`): Creates a proper diary entry for the film with the current date. This appears in your Letterboxd diary, shows up in your followers' activity feeds, and allows for ratings/reviews in the same entry. The film is also automatically marked as watched.
 
 The following media servers are currently supported or have planned support:
 
@@ -195,6 +200,8 @@ users:
   - letterboxd:
       username: letterboxd_username1
       password: "${LETTERBOXD_PASSWORD1}"
+      # Set to true to create diary entries instead of just marking films as watched
+      log_films: true
     plex:
       username: Plex Display Name  # The Account.title from webhook
 
@@ -253,6 +260,15 @@ EmBoxd provides the following API endpoints:
 ### Advanced Features
 
 EmBoxd includes several advanced features for improved reliability:
+
+#### Letterboxd Diary Integration
+- Optional diary entry creation with the `log_films: true` setting
+- **Watched vs. Logged**: 
+  - **Watched**: Films are just added to your watched collection (default behavior)
+  - **Logged**: Films get full diary entries with dates, appear in activity feeds, and can include ratings
+- Creates proper diary entries using the "Review or log..." button in Letterboxd
+- Automatically sets the correct watch date to match when you watched it on your media server
+- Falls back to simple "watched" marking when disabled (`log_films: false` or not set)
 
 #### Enhanced Logging
 - Structured logs with detailed context
