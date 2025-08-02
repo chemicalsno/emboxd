@@ -1,0 +1,21 @@
+{
+  "event": "media.play",
+  "Account": {
+    "id": "12345",
+    "title": "JohnDoe"
+  },
+  "Metadata": {
+    "type": "movie",
+    "title": "Interstellar",
+    "guid": "plex://movie/5d776b9da7dcad001f89e688",
+    "duration": 10080000,
+    "viewOffset": 0
+  },
+  "Player": {
+    "state": "playing"
+  },
+  "Server": {
+    "title": "My Plex Server"
+  },
+  "EventTime": 1688162000
+}

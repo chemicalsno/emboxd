@@ -1,6 +1,11 @@
 users:
-  - emby:
-      username: john
-    letterboxd:
+  - letterboxd:
       username: john_doe
       password: 'password'
+      # Set to true to create diary entries instead of just marking films as watched
+      log_films: true
+    emby:
+      username: john
+    plex:
+      username: John
+      id: "12345"

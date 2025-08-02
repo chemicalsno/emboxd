@@ -1,14 +1,11 @@
 package api
 
 import (
-	"time"
+	"emboxd/notification"
 	"log/slog"
-)
+	"time"
 
-import "github.com/gin-gonic/gin"
-
-import (
-	"github.com/computer-geek64/emboxd/notification"
+	"github.com/gin-gonic/gin"
 )
 
 const _EMBY_TIME_LAYOUT string = "2006-01-02T15:04:05.0000000Z"
@@ -21,8 +18,8 @@ type embyNotification struct {
 		Name string `json:"Name"`
 	} `json:"User"`
 	Item struct {
-		Type string `json:"Type"`
-		RuntimeTicks int64 `json:"RunTimeTicks"`
+		Type         string `json:"Type"`
+		RuntimeTicks int64  `json:"RunTimeTicks"`
 		ProviderIds  struct {
 			Imdb string `json:"Imdb"`
 		} `json:"ProviderIds"`
@@ -41,6 +38,9 @@ func convertTicksToDuration(ticks int64) time.Duration {
 }
 
 func (a *Api) postEmbyWebhook(context *gin.Context) {
+	// Track the webhook for metrics
+	a.metrics.TrackWebhook("emby")
+
 	var embyNotif embyNotification
 	if err := context.BindJSON(&embyNotif); err != nil {
 		slog.Error("Malformed webhook notification payload")
