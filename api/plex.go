@@ -2,9 +2,11 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"time"
 
 	"emboxd/history"
@@ -116,11 +118,28 @@ func (a *Api) postPlexWebhook(context *gin.Context) {
 	body, _ := context.GetRawData()
 	slog.Debug("Received Plex webhook payload", slog.String("raw_payload", string(body)))
 
-	// Reset body for JSON binding
+	// Reset body for parsing
 	context.Request.Body = io.NopCloser(bytes.NewBuffer(body))
 
+	// Try to get JSON from form data first (Plex sends multipart form)
 	var plexNotif plexNotification
-	if err := context.BindJSON(&plexNotif); err != nil {
+	var err error
+	
+	// Check if it's multipart form data
+	if strings.Contains(context.GetHeader("Content-Type"), "multipart/form-data") {
+		// Parse as form data
+		payloadStr := context.PostForm("payload")
+		if payloadStr == "" {
+			err = fmt.Errorf("no payload field in form data")
+		} else {
+			err = json.Unmarshal([]byte(payloadStr), &plexNotif)
+		}
+	} else {
+		// Parse as direct JSON
+		err = context.BindJSON(&plexNotif)
+	}
+	
+	if err != nil {
 		slog.Error("Malformed Plex webhook notification payload", slog.String("error", err.Error()), slog.String("payload", string(body)))
 
 		// Log error event
