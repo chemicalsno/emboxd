@@ -44,6 +44,7 @@ type plexNotification struct {
 		Guid                 []struct {
 			ID string `json:"id"`
 		} `json:"Guid"`
+		GuidString           string `json:"guid,omitempty"`
 		LibrarySectionID     int    `json:"librarySectionID"`
 		Type                 string `json:"type"`
 		Title                string `json:"title"`
@@ -108,6 +109,56 @@ func parsePlexImdbId(guids []struct{ ID string `json:"id"` }) string {
 	return ""
 }
 
+// extractImdbId tries to get an IMDb ID from both the Guid array and GuidString fields
+func extractImdbId(metadata struct {
+	LibrarySectionType   string `json:"librarySectionType"`
+	RatingKey            string `json:"ratingKey"`
+	Key                  string `json:"key"`
+	ParentRatingKey      string `json:"parentRatingKey,omitempty"`
+	GrandparentRatingKey string `json:"grandparentRatingKey,omitempty"`
+	Guid                 []struct {
+		ID string `json:"id"`
+	} `json:"Guid"`
+	GuidString           string `json:"guid,omitempty"`
+	LibrarySectionID     int    `json:"librarySectionID"`
+	Type                 string `json:"type"`
+	Title                string `json:"title"`
+	GrandparentKey       string `json:"grandparentKey,omitempty"`
+	ParentKey            string `json:"parentKey,omitempty"`
+	GrandparentTitle     string `json:"grandparentTitle,omitempty"`
+	ParentTitle          string `json:"parentTitle,omitempty"`
+	Summary              string `json:"summary"`
+	Index                int    `json:"index,omitempty"`
+	ParentIndex          int    `json:"parentIndex,omitempty"`
+	RatingCount          int    `json:"ratingCount,omitempty"`
+	Thumb                string `json:"thumb,omitempty"`
+	Art                  string `json:"art,omitempty"`
+	ParentThumb          string `json:"parentThumb,omitempty"`
+	GrandparentThumb     string `json:"grandparentThumb,omitempty"`
+	GrandparentArt       string `json:"grandparentArt,omitempty"`
+	AddedAt              int64  `json:"addedAt"`
+	UpdatedAt            int64  `json:"updatedAt"`
+	Duration             int64  `json:"duration,omitempty"`
+	ViewOffset           int64  `json:"viewOffset,omitempty"`
+}) string {
+	// First, try to get IMDb ID from the Guid array (preferred)
+	imdbId := parsePlexImdbId(metadata.Guid)
+	if imdbId != "" {
+		return imdbId
+	}
+
+	// If no IMDb ID found in array, try the GuidString field
+	if metadata.GuidString != "" {
+		// Create a single-item array to reuse the existing parsing logic
+		singleGuid := []struct{ ID string `json:"id"` }{
+			{ID: metadata.GuidString},
+		}
+		return parsePlexImdbId(singleGuid)
+	}
+
+	return ""
+}
+
 func (a *Api) postPlexWebhook(context *gin.Context) {
 	startTime := time.Now()
 
@@ -163,7 +214,7 @@ func (a *Api) postPlexWebhook(context *gin.Context) {
 		context.AbortWithStatus(200)
 		return
 	}
-	imdbId := parsePlexImdbId(plexNotif.Metadata.Guid)
+	imdbId := extractImdbId(plexNotif.Metadata)
 	if imdbId == "" {
 		context.AbortWithStatus(200)
 		return
