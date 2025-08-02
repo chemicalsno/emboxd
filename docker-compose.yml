@@ -1,6 +1,10 @@
 services:
   emboxd:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      cache_from:
+        - emboxd:latest
     # Alternatively, once you have a Docker image published:
     # image: yourusername/emboxd:latest
     container_name: emboxd

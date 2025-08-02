@@ -54,9 +54,6 @@ func main() {
 
 	if envPort := os.Getenv("PORT"); envPort != "" {
 		port = envPort
-		fmt.Printf("Using PORT from environment: %s\n", port)
-	} else {
-		fmt.Printf("Using default port: %s\n", port)
 	}
 
 	// Configure enhanced logging

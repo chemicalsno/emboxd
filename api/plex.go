@@ -1,6 +1,9 @@
 package api
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"log/slog"
 	"time"
 
@@ -12,25 +15,52 @@ import (
 
 // Plex webhook payload structure (simplified for movie events)
 type plexNotification struct {
-	Event   string `json:"event"`
+	Event string `json:"event"`
+	User  bool   `json:"user"`
+	Owner bool   `json:"owner"`
 	Account struct {
+		ID    int    `json:"id"`
 		Title string `json:"title"`
-		ID    string `json:"id"`
+		Thumb string `json:"thumb,omitempty"`
 	} `json:"Account"`
-	Metadata struct {
-		Type       string `json:"type"`
-		Title      string `json:"title"`
-		Guid       string `json:"guid"`
-		Duration   int64  `json:"duration"`
-		ViewOffset int64  `json:"viewOffset"`
-	} `json:"Metadata"`
-	Player struct {
-		State string `json:"state"`
-	} `json:"Player"`
 	Server struct {
 		Title string `json:"title"`
+		UUID  string `json:"uuid"`
 	} `json:"Server"`
-	EventTime int64 `json:"eventTime"`
+	Player struct {
+		Local         bool   `json:"local"`
+		PublicAddress string `json:"publicAddress"`
+		Title         string `json:"title"`
+		UUID          string `json:"uuid"`
+	} `json:"Player"`
+	Metadata struct {
+		LibrarySectionType   string `json:"librarySectionType"`
+		RatingKey            string `json:"ratingKey"`
+		Key                  string `json:"key"`
+		ParentRatingKey      string `json:"parentRatingKey,omitempty"`
+		GrandparentRatingKey string `json:"grandparentRatingKey,omitempty"`
+		Guid                 string `json:"guid"`
+		LibrarySectionID     int    `json:"librarySectionID"`
+		Type                 string `json:"type"`
+		Title                string `json:"title"`
+		GrandparentKey       string `json:"grandparentKey,omitempty"`
+		ParentKey            string `json:"parentKey,omitempty"`
+		GrandparentTitle     string `json:"grandparentTitle,omitempty"`
+		ParentTitle          string `json:"parentTitle,omitempty"`
+		Summary              string `json:"summary"`
+		Index                int    `json:"index,omitempty"`
+		ParentIndex          int    `json:"parentIndex,omitempty"`
+		RatingCount          int    `json:"ratingCount,omitempty"`
+		Thumb                string `json:"thumb,omitempty"`
+		Art                  string `json:"art,omitempty"`
+		ParentThumb          string `json:"parentThumb,omitempty"`
+		GrandparentThumb     string `json:"grandparentThumb,omitempty"`
+		GrandparentArt       string `json:"grandparentArt,omitempty"`
+		AddedAt              int64  `json:"addedAt"`
+		UpdatedAt            int64  `json:"updatedAt"`
+		Duration             int64  `json:"duration,omitempty"`
+		ViewOffset           int64  `json:"viewOffset,omitempty"`
+	} `json:"Metadata"`
 }
 
 func parsePlexImdbId(guid string) string {
@@ -82,9 +112,16 @@ func (a *Api) postPlexWebhook(context *gin.Context) {
 	// Track the webhook for metrics
 	a.metrics.TrackWebhook("plex")
 
+	// Read raw body for debugging
+	body, _ := context.GetRawData()
+	slog.Debug("Received Plex webhook payload", slog.String("raw_payload", string(body)))
+
+	// Reset body for JSON binding
+	context.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+
 	var plexNotif plexNotification
 	if err := context.BindJSON(&plexNotif); err != nil {
-		slog.Error("Malformed Plex webhook notification payload")
+		slog.Error("Malformed Plex webhook notification payload", slog.String("error", err.Error()), slog.String("payload", string(body)))
 
 		// Log error event
 		event := &history.Event{
@@ -121,8 +158,10 @@ func (a *Api) postPlexWebhook(context *gin.Context) {
 	var processor *notification.Processor
 	var ok bool
 
-	if accountID != "" {
-		processor, ok = a.notificationProcessorByPlexAccountID[accountID]
+	if accountID != 0 {
+		// Convert int ID to string for lookup
+		accountIDStr := fmt.Sprintf("%d", accountID)
+		processor, ok = a.notificationProcessorByPlexAccountID[accountIDStr]
 	}
 
 	// Fall back to username matching if needed
@@ -136,7 +175,8 @@ func (a *Api) postPlexWebhook(context *gin.Context) {
 		context.AbortWithStatus(200)
 		return
 	}
-	eventTime := time.Unix(plexNotif.EventTime, 0)
+	// Use current time since Plex webhooks don't include eventTime
+	eventTime := time.Now()
 	metadata := notification.Metadata{
 		Server:   notification.Plex,
 		Username: username,
