@@ -41,7 +41,9 @@ type plexNotification struct {
 		Key                  string `json:"key"`
 		ParentRatingKey      string `json:"parentRatingKey,omitempty"`
 		GrandparentRatingKey string `json:"grandparentRatingKey,omitempty"`
-		Guid                 string `json:"guid"`
+		Guid                 []struct {
+			ID string `json:"id"`
+		} `json:"Guid"`
 		LibrarySectionID     int    `json:"librarySectionID"`
 		Type                 string `json:"type"`
 		Title                string `json:"title"`
@@ -65,46 +67,44 @@ type plexNotification struct {
 	} `json:"Metadata"`
 }
 
-func parsePlexImdbId(guid string) string {
-	// Handle different GUID formats
-
-	// Direct IMDb format: "imdb://tt1234567"
-	const imdbPrefix = "imdb://"
-	if len(guid) > len(imdbPrefix) && guid[:len(imdbPrefix)] == imdbPrefix {
-		return guid[len(imdbPrefix):]
-	}
-
-	// TMDb format: "tmdb://12345"
-	// In a real implementation, this would do an API lookup to convert TMDb ID to IMDb ID
-	const tmdbPrefix = "tmdb://"
-	if len(guid) > len(tmdbPrefix) && guid[:len(tmdbPrefix)] == tmdbPrefix {
-		// For a full implementation, you would:
-		// 1. Extract the TMDb ID: tmdbId := guid[len(tmdbPrefix):]
-		// 2. Use TMDb API to look up the corresponding IMDb ID
-		// 3. Return the IMDb ID
-
-		// TODO: Implement TMDb to IMDb lookup
-		// This would require an API call to something like:
-		// https://api.themoviedb.org/3/movie/{tmdb_id}/external_ids
-
-		slog.Debug("TMDb ID found but conversion to IMDb ID not yet implemented",
-			slog.String("tmdb_guid", guid))
+// parsePlexImdbId takes an array of Guid objects and returns the first valid IMDb ID found
+func parsePlexImdbId(guids []struct{ ID string }) string {
+	if guids == nil {
 		return ""
 	}
 
-	// Plex internal format: "plex://movie/5d776b9..."
-	const plexPrefix = "plex://"
-	if len(guid) > len(plexPrefix) && guid[:len(plexPrefix)] == plexPrefix {
-		// For a full implementation, you would need to:
-		// 1. Extract the Plex item ID
-		// 2. Query the Plex API to get external IDs for this item
-		// 3. Return the IMDb ID if available
+	// Check each GUID for an IMDb ID
+	for _, g := range guids {
+		guid := g.ID
+		// Direct IMDb format: "imdb://tt1234567"
+		const imdbPrefix = "imdb://"
+		if len(guid) > len(imdbPrefix) && guid[:len(imdbPrefix)] == imdbPrefix {
+			return guid[len(imdbPrefix):]
+		}
 
-		slog.Debug("Plex internal ID found but conversion to IMDb ID not yet implemented",
-			slog.String("plex_guid", guid))
-		return ""
+		// TMDb format: "tmdb://12345"
+		// In a real implementation, this would do an API lookup to convert TMDb ID to IMDb ID
+		const tmdbPrefix = "tmdb://"
+		if len(guid) > len(tmdbPrefix) && guid[:len(tmdbPrefix)] == tmdbPrefix {
+			// For now, just return the TMDb ID as a fallback
+			// In a full implementation, you would:
+			// 1. Extract the TMDb ID: tmdbId := guid[len(tmdbPrefix):]
+			// 2. Use TMDb API to look up the corresponding IMDb ID
+			// 3. Return the IMDb ID
+			return guid[len(tmdbPrefix):]
+		}
+
+		// Plex internal format: "plex://movie/5d776b9..."
+		const plexPrefix = "plex://"
+		if len(guid) > len(plexPrefix) && guid[:len(plexPrefix)] == plexPrefix {
+			// For now, just log and continue to next GUID
+			slog.Debug("Plex internal ID found in GUID array, checking next available ID",
+				slog.String("plex_guid", guid))
+			continue
+		}
 	}
 
+	// No valid IMDb ID found in any of the GUIDs
 	return ""
 }
 
