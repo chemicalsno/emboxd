@@ -68,7 +68,7 @@ type plexNotification struct {
 }
 
 // parsePlexImdbId takes an array of Guid objects and returns the first valid IMDb ID found
-func parsePlexImdbId(guids []struct{ ID string }) string {
+func parsePlexImdbId(guids []struct{ ID string `json:"id"` }) string {
 	if guids == nil {
 		return ""
 	}
