@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      platforms:
+        - linux/amd64  # x64 architecture for server
       cache_from:
         - emboxd:latest
     # Alternatively, once you have a Docker image published:

@@ -16,6 +16,9 @@ func (u User) isLoggedIn(page ...playwright.Page) bool {
 	if len(page) == 0 {
 		// Create new page
 		activePage = u.newPage("https://letterboxd.com")
+		if activePage == nil {
+			return false // Browser not available
+		}
 		shouldClosePage = true
 	} else {
 		activePage = page[0]
@@ -42,6 +45,14 @@ func (u User) Login() error {
 
 	return WithRetry(op, func() error {
 		var page = u.newPage("https://letterboxd.com/sign-in/")
+		if page == nil {
+			return &LetterboxdError{
+				Type:          ErrorTypeNetwork,
+				OriginalError: fmt.Errorf("failed to create page - browser not available"),
+				Context:       map[string]interface{}{"username": u.username},
+				Retryable:     true,
+			}
+		}
 		defer page.Close()
 
 		if page.URL() == "https://letterboxd.com" {

@@ -83,6 +83,20 @@ func init() {
 	var launchOptions = playwright.BrowserTypeLaunchOptions{
 		Headless: &headless,
 		Timeout:  playwright.Float(60000), // 60 seconds timeout
+		Args: []string{
+			"--no-sandbox",
+			"--disable-setuid-sandbox",
+			"--disable-dev-shm-usage",
+			"--disable-accelerated-2d-canvas",
+			"--no-first-run",
+			"--no-zygote",
+			"--disable-gpu",
+			"--disable-background-timer-throttling",
+			"--disable-backgrounding-occluded-windows",
+			"--disable-renderer-backgrounding",
+			"--disable-features=TranslateUI",
+			"--disable-ipc-flooding-protection",
+		},
 	}
 
 	slog.Info("Launching Firefox browser...")
@@ -127,9 +141,8 @@ func (l User) newPage(url string) playwright.Page {
 			slog.String("error", pageErr.Error()),
 			slog.String("username", l.username),
 			slog.String("url", url))
-		// Instead of panicking, we return a nil page, and callers will need to check
-		// But since this is a major architectural change, we'll keep the panic for now
-		panic(pageErr)
+		// Return nil instead of panicking to prevent crash loops
+		return nil
 	}
 
 	if _, err := page.Goto(url); err != nil {
