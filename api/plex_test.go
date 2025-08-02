@@ -11,32 +11,32 @@ import (
 func TestParsePlexImdbId(t *testing.T) {
 	tests := []struct {
 		name     string
-		guid     string
+		guid     []struct{ ID string `json:"id"` }
 		expected string
 	}{
 		{
 			name:     "Valid IMDb GUID",
-			guid:     "imdb://tt0133093",
+			guid:     []struct{ ID string `json:"id"` }{{ID: "imdb://tt0133093"}},
 			expected: "tt0133093",
 		},
 		{
 			name:     "Valid TMDb GUID",
-			guid:     "tmdb://27205",
-			expected: "", // Currently returns empty as TMDb conversion is not implemented
+			guid:     []struct{ ID string `json:"id"` }{{ID: "tmdb://27205"}},
+			expected: "27205", // Now returns TMDb ID as fallback
 		},
 		{
 			name:     "Valid Plex GUID",
-			guid:     "plex://movie/5d776b9da7dcad001f89e688",
+			guid:     []struct{ ID string `json:"id"` }{{ID: "plex://movie/5d776b9da7dcad001f89e688"}},
 			expected: "", // Currently returns empty as Plex conversion is not implemented
 		},
 		{
 			name:     "Empty GUID",
-			guid:     "",
+			guid:     []struct{ ID string `json:"id"` }{},
 			expected: "",
 		},
 		{
 			name:     "Invalid GUID format",
-			guid:     "invalid://12345",
+			guid:     []struct{ ID string `json:"id"` }{{ID: "invalid://12345"}},
 			expected: "",
 		},
 	}
@@ -77,7 +77,8 @@ func TestPlexNotificationParsing(t *testing.T) {
 			assert.NotEmpty(t, notification.Metadata.Guid)
 			assert.Greater(t, notification.Metadata.Duration, int64(0))
 			assert.NotEmpty(t, notification.Server.Title)
-			assert.Greater(t, notification.EventTime, int64(0))
+			// EventTime field was removed from the struct
+			// assert.Greater(t, notification.EventTime, int64(0))
 		})
 	}
 }
