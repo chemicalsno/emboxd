@@ -29,8 +29,9 @@
   - [Running](#running)
   - [API Endpoints](#api-endpoints)
   - [Advanced Features](#advanced-features)
+    - [Letterboxd Integration Options](#letterboxd-integration-options)
     - [Enhanced Logging](#enhanced-logging)
-    - [Error Handling \& Recovery](#error-handling--recovery)
+    - [Error Handling & Recovery](#error-handling--recovery)
     - [Event History](#event-history)
 - [Contributors](#contributors)
 - [License](#license)
@@ -202,6 +203,8 @@ users:
       password: "${LETTERBOXD_PASSWORD1}"
       # Set to true to create diary entries instead of just marking films as watched
       log_films: true
+      # Set to true to allow logging films again even if they've already been logged
+      allow_relog: false
     plex:
       username: Plex Display Name  # The Account.title from webhook
 
@@ -259,7 +262,15 @@ EmBoxd provides the following API endpoints:
 
 ### Advanced Features
 
-EmBoxd includes several advanced features for improved reliability:
+#### Letterboxd Integration Options
+
+EmBoxd provides several options for how movies are tracked in Letterboxd:
+
+1. **Watched Status** (`log_films: false`) - This simply marks the film as watched in your Letterboxd account. The film appears in your watched history but does not create a diary entry with a specific date.
+
+2. **Diary Logging** (`log_films: true`) - This creates a diary entry for the film with the current date. This is more visible in your Letterboxd profile and allows for adding ratings, reviews, and other metadata later.
+
+3. **Re-logging** (`allow_relog: true`) - When enabled, this allows EmBoxd to log a film again even if it has already been logged. This creates multiple diary entries for the same film on different dates, which is useful for tracking rewatches.
 
 #### Letterboxd Diary Integration
 - Optional diary entry creation with the `log_films: true` setting

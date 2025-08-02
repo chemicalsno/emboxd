@@ -4,6 +4,8 @@ users:
       password: 'password'
       # Set to true to create diary entries instead of just marking films as watched
       log_films: true
+      # Set to true to allow logging films again even if they've already been logged
+      allow_relog: true
     emby:
       username: john
     plex:

@@ -110,7 +110,7 @@ func init() {
 	}
 }
 
-func NewUser(username string, password string) User {
+func NewUser(username string, password string, allowRelog bool) User {
 	var context, contextErr = browser.NewContext(playwright.BrowserNewContextOptions{
 		Viewport: &playwright.Size{
 			Width:  1920,
@@ -125,13 +125,15 @@ func NewUser(username string, password string) User {
 		username,
 		password,
 		context,
+		allowRelog,
 	}
 }
 
 type User struct {
-	username string
-	password string
-	context  playwright.BrowserContext
+	username   string
+	password   string
+	context    playwright.BrowserContext
+	allowRelog bool
 }
 
 func (l User) newPage(url string) playwright.Page {

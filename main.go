@@ -75,7 +75,7 @@ func main() {
 	for _, user := range conf.Users {
 		var letterboxdWorker, workerExists = letterboxdWorkers[user.Letterboxd.Username]
 		if !workerExists {
-			var worker = letterboxd.NewWorker(user.Letterboxd.Username, user.Letterboxd.Password, user.Letterboxd.LogFilms)
+			var worker = letterboxd.NewWorker(user.Letterboxd.Username, user.Letterboxd.Password, user.Letterboxd.LogFilms, user.Letterboxd.AllowRelog)
 			worker.Start()
 			letterboxdWorker = &worker
 			letterboxdWorkers[user.Letterboxd.Username] = letterboxdWorker

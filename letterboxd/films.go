@@ -166,6 +166,15 @@ func (u User) LogFilmWatched(imdbId string, date ...time.Time) error {
 			"a[href*='log']",
 		}
 		
+		// If allowRelog is true, also check for "Log again..." button
+		if u.allowRelog {
+			logButtonSelectors = append([]string{
+				"a:text('Log again...')",
+				"a:has-text('Log again')",
+			}, logButtonSelectors...)
+			slog.Info("Looking for 'Log again...' button (re-logging enabled)", slog.String("imdbId", imdbId))
+		}
+		
 		var clicked = false
 		for _, selector := range logButtonSelectors {
 			var logButton = page.Locator(selector)

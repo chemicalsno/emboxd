@@ -23,12 +23,13 @@ type Event struct {
 
 type Worker struct {
 	debouncer
-	user     User
-	channel  chan Event
-	logFilms bool
+	user       User
+	channel    chan Event
+	logFilms   bool
+	allowRelog bool
 }
 
-func NewWorker(username string, password string, logFilms bool) Worker {
+func NewWorker(username string, password string, logFilms bool, allowRelog bool) Worker {
 	var channel = make(chan Event, _EVENT_BUFFER_SIZE)
 	return Worker{
 		debouncer: newDebouncer(
@@ -37,9 +38,11 @@ func NewWorker(username string, password string, logFilms bool) Worker {
 		user: NewUser(
 			username,
 			password,
+			allowRelog,
 		),
-		channel: channel,
-		logFilms: logFilms,
+		channel:    channel,
+		logFilms:   logFilms,
+		allowRelog: allowRelog,
 	}
 }
 
