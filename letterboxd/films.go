@@ -1,11 +1,13 @@
 package letterboxd
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
 	"time"
+
+	"github.com/playwright-community/playwright-go"
 )
 
 func (u User) SetFilmWatched(imdbId string, watched bool) error {
@@ -46,7 +48,7 @@ func (u User) SetFilmWatched(imdbId string, watched bool) error {
 
 		// Verify we're on the correct page
 		pageTitle, _ := page.Title()
-		pageURL, _ := page.URL()
+		pageURL := page.URL()
 		slog.Info("Letterboxd page loaded", 
 			slog.String("imdbId", imdbId),
 			slog.String("pageTitle", pageTitle),
@@ -117,7 +119,7 @@ func (u User) LogFilmWatched(imdbId string, date ...time.Time) error {
 
 		// Verify we're on the correct page
 		pageTitle, _ := page.Title()
-		pageURL, _ := page.URL()
+		pageURL := page.URL()
 		slog.Info("Letterboxd page loaded for logging", 
 			slog.String("imdbId", imdbId),
 			slog.String("pageTitle", pageTitle),
@@ -202,7 +204,7 @@ func (u User) LogFilmWatched(imdbId string, date ...time.Time) error {
 			"div#diary-entry-form-modal button.button.-action.button-action",
 		}
 		
-		var saveLocator playwright.Locator
+		var saveLocator *playwright.Locator
 		var saveFound = false
 		
 		for _, selector := range saveButtonSelectors {
