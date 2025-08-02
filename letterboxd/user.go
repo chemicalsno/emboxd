@@ -147,7 +147,11 @@ func (l User) newPage(url string) playwright.Page {
 		return nil
 	}
 
-	if _, err := page.Goto(url); err != nil {
+	// Increase timeout to 60 seconds for better reliability
+	timeout := 60000.0
+	if _, err := page.Goto(url, playwright.PageGotoOptions{
+		Timeout: &timeout,
+	}); err != nil {
 		// Acceptable due to ad loading or other non-critical resources
 		slog.Warn("Page took too long to load",
 			slog.String("url", url),
