@@ -44,10 +44,21 @@ func (u User) SetFilmWatched(imdbId string, watched bool) error {
 		// Allow watched information to populate
 		time.Sleep(3 * time.Second)
 
+		// Verify we're on the correct page
+		pageTitle, _ := page.Title()
+		pageURL, _ := page.URL()
+		slog.Info("Letterboxd page loaded", 
+			slog.String("imdbId", imdbId),
+			slog.String("pageTitle", pageTitle),
+			slog.String("pageURL", pageURL))
+
 		// Find the watched button
+		slog.Debug("Looking for watched button", slog.String("imdbId", imdbId), slog.String("selector", "span.action-large.-watch .action.-watch"))
+		slog.Info("Attempting to mark film as watched on Letterboxd", slog.String("imdbId", imdbId))
 		var watchedLocator = page.Locator("span.action-large.-watch .action.-watch")
 		var classes, watchedLocatorErr = watchedLocator.GetAttribute("class")
 		if watchedLocatorErr != nil {
+			slog.Error("Failed to find watched button", slog.String("imdbId", imdbId), slog.String("error", watchedLocatorErr.Error()))
 			return &LetterboxdError{
 				Type:          ErrorTypeUI,
 				OriginalError: watchedLocatorErr,
@@ -55,6 +66,7 @@ func (u User) SetFilmWatched(imdbId string, watched bool) error {
 				Retryable:     true,
 			}
 		}
+		slog.Debug("Found watched button", slog.String("imdbId", imdbId), slog.String("classes", classes))
 
 		if slices.Contains(strings.Split(classes, " "), "-on") == watched {
 			// Film already marked with desired watch state
@@ -63,7 +75,9 @@ func (u User) SetFilmWatched(imdbId string, watched bool) error {
 		} 
 			
 		// Toggle film watched status
+		slog.Debug("Attempting to click watched button", slog.String("imdbId", imdbId))
 		if err := watchedLocator.Click(); err != nil {
+			slog.Error("Failed to click watched button", slog.String("imdbId", imdbId), slog.String("error", err.Error()))
 			return &LetterboxdError{
 				Type:          ErrorTypeUI,
 				OriginalError: err,
@@ -71,8 +85,10 @@ func (u User) SetFilmWatched(imdbId string, watched bool) error {
 				Retryable:     true,
 			}
 		}
+		slog.Debug("Successfully clicked watched button", slog.String("imdbId", imdbId))
 		time.Sleep(3 * time.Second)
 		
+		slog.Info("Completed SetFilmWatched operation", slog.String("imdbId", imdbId), slog.Bool("watched", watched))
 		return nil
 	}, config)
 }
