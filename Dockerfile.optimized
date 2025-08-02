@@ -15,19 +15,34 @@ RUN apt-get update && apt-get install -y \
     libxtst6 lsb-release wget xdg-utils nodejs npm && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Playwright in separate layer (cached)
-RUN go install github.com/playwright-community/playwright-go/cmd/playwright@latest
+# Set up Playwright environment
 ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
 
-# Install browsers in separate layer (cached)
+# Install Playwright and browsers in a single layer to reduce image size
+# Use specific versions to ensure compatibility
 RUN go install github.com/playwright-community/playwright-go/cmd/playwright@v0.4902.0 && \
-    playwright install firefox --with-deps && \
     cd /tmp && \
+    # Install specific npm package version for compatibility
     npm init -y && \
     npm install playwright@1.49.1 && \
-    npx playwright install && \
+    # Install Firefox with dependencies
+    npx playwright@1.49.1 install firefox --with-deps && \
+    # Create necessary directories and symlinks for compatibility
     mkdir -p /root/.cache/ms-playwright && \
-    chmod -R 777 /root/.cache/ms-playwright
+    mkdir -p /go/pkg/mod/github.com/playwright-community && \
+    ln -sf /root/.cache/ms-playwright /go/pkg/mod/github.com/playwright-community/playwright-drivers && \
+    # Create firefox version symlink
+    cd /root/.cache/ms-playwright && \
+    if [ -d "$(find . -name 'firefox-*' -type d | head -1)" ]; then \
+        mkdir -p ./firefox-1491 && \
+        cp -r $(find . -name 'firefox-*' -type d | head -1)/* ./firefox-1491/ && \
+        ln -sf ./firefox-* ./firefox-1491; \
+    fi && \
+    # Fix permissions
+    chmod -R 777 /root/.cache/ms-playwright && \
+    # Cleanup
+    cd /code && \
+    rm -rf /tmp/node_modules /tmp/package*.json
 
 # Dependencies stage - only rebuilds when go.mod/go.sum changes
 FROM base AS deps

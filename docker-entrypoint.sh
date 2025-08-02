@@ -22,68 +22,47 @@ echo "TZ=${TZ:-UTC}"
 # Set PATH to include Go binaries
 export PATH=$PATH:/root/go/bin
 
-# Verify Playwright installation
-echo "=============== Playwright Setup ==============="
-echo "Checking for playwright binary..."
-which playwright || go install github.com/playwright-community/playwright-go/cmd/playwright@latest
-
 # Set Playwright browser path
 export PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_BROWSERS_PATH:-/root/.cache/ms-playwright}
 echo "PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH"
 
-echo "Installing Firefox browser and drivers for Playwright..."
-# Use the specifically installed playwright binary that matches the Go module version (v0.4902.0)
-if ! playwright install firefox --with-deps; then
-  echo "ERROR: Failed to install Firefox browser"
-  exit 1
-fi
-
-# Install the correct driver version for v0.4902.0 (which uses v1.49.1)
-echo "Installing Playwright driver v1.49.1 explicitly..."
-cd /tmp && \
-npm init -y && \
-npm install playwright@1.49.1 && \
-npx playwright@1.49.1 install --with-deps && \
-# Create backup symlinks in case the detection fails
-mkdir -p /go/pkg/mod/github.com/playwright-community && \
-ln -sf $PLAYWRIGHT_BROWSERS_PATH /go/pkg/mod/github.com/playwright-community/playwright-drivers && \
-# Fix permissions for the cache directory
-chmod -R 777 $PLAYWRIGHT_BROWSERS_PATH && \
-cd - || echo "Failed to return to previous directory"
-
-echo "Verifying Playwright setup..."
-# Check if driver binary is present
-find $PLAYWRIGHT_BROWSERS_PATH -name "*.jar" -o -name "*.exe" | grep -i driver || echo "No driver found. Creating a symlink to ensure driver is found."
-
-# Create additional symlink for the specific version
-if find $PLAYWRIGHT_BROWSERS_PATH -name "firefox-*" -type d | grep -q ""; then
-  mkdir -p $PLAYWRIGHT_BROWSERS_PATH/firefox-1491
-  find $PLAYWRIGHT_BROWSERS_PATH -name "firefox-*" -type d -exec cp -r {}/* $PLAYWRIGHT_BROWSERS_PATH/firefox-1491/ \;
-fi
-
-echo "Checking for Firefox installation..."
-if ! ls -la $PLAYWRIGHT_BROWSERS_PATH 2>/dev/null; then
-  echo "WARNING: No browser cache found at $PLAYWRIGHT_BROWSERS_PATH"
-fi
+# Verify Playwright setup
+echo "=============== Playwright Setup ==============="
+echo "Checking for Playwright installation..."
 
 # Verify the driver files exist
-echo "Checking for Playwright drivers..."
 if [[ ! -d "$PLAYWRIGHT_BROWSERS_PATH" ]]; then
   echo "ERROR: Playwright browser directory doesn't exist"
   mkdir -p $PLAYWRIGHT_BROWSERS_PATH
 fi
-ls -la $PLAYWRIGHT_BROWSERS_PATH
 
-# Check exact driver location that the error is looking for
-echo "Looking for v1.49.1 driver specifically..."
-find $PLAYWRIGHT_BROWSERS_PATH -type d -name "*1.49*" || echo "No 1.49.1 driver found"
-find /go -name "*playwright*" -type d || echo "No playwright in /go"
+# Quick verification of Firefox installation
+echo "Verifying Firefox installation..."
+if ! ls -la $PLAYWRIGHT_BROWSERS_PATH/firefox-* 2>/dev/null; then
+  echo "WARNING: Firefox installation not found at expected location"
+  # We don't exit here as the Dockerfile should have installed it correctly
+fi
 
-# Make sure we have the right driver versions
-echo "Creating explicit driver link"
-cd $PLAYWRIGHT_BROWSERS_PATH && \
-ln -sf ./firefox-* ./firefox-1491 && \
-cd - || echo "Failed to create driver link"
+# Verify symlinks for compatibility
+echo "Verifying Playwright symlinks..."
+# Ensure the playwright-drivers symlink exists
+if [[ ! -L "/go/pkg/mod/github.com/playwright-community/playwright-drivers" ]]; then
+  echo "Creating playwright-drivers symlink"
+  mkdir -p /go/pkg/mod/github.com/playwright-community
+  ln -sf $PLAYWRIGHT_BROWSERS_PATH /go/pkg/mod/github.com/playwright-community/playwright-drivers
+fi
+
+# Ensure the firefox-1491 directory exists
+if [[ ! -d "$PLAYWRIGHT_BROWSERS_PATH/firefox-1491" ]]; then
+  echo "Creating firefox-1491 directory"
+  if firefox_dir=$(find $PLAYWRIGHT_BROWSERS_PATH -name "firefox-*" -type d | head -1); then
+    mkdir -p $PLAYWRIGHT_BROWSERS_PATH/firefox-1491
+    cp -r $firefox_dir/* $PLAYWRIGHT_BROWSERS_PATH/firefox-1491/
+    ln -sf ./firefox-* $PLAYWRIGHT_BROWSERS_PATH/firefox-1491
+  else
+    echo "WARNING: No Firefox installation found to link"
+  fi
+fi
 
 # Final startup
 echo "=============== Starting EmBoxd ==============="
