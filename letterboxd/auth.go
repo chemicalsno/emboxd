@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
-)
 
-import "github.com/playwright-community/playwright-go"
+	"github.com/playwright-community/playwright-go"
+)
 
 func (u User) isLoggedIn(page ...playwright.Page) bool {
 	var shouldClosePage bool

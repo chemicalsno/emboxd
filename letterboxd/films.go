@@ -1,9 +1,9 @@
 package letterboxd
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -204,7 +204,7 @@ func (u User) LogFilmWatched(imdbId string, date ...time.Time) error {
 			"div#diary-entry-form-modal button.button.-action.button-action",
 		}
 		
-		var saveLocator *playwright.Locator
+		var saveLocator playwright.Locator
 		var saveFound = false
 		
 		for _, selector := range saveButtonSelectors {
