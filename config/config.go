@@ -9,6 +9,7 @@ import (
 type letterboxd struct {
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
+	LogFilms bool   `yaml:"log_films"`
 }
 
 type emby struct {

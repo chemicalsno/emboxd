@@ -23,11 +23,12 @@ type Event struct {
 
 type Worker struct {
 	debouncer
-	user    User
-	channel chan Event
+	user     User
+	channel  chan Event
+	logFilms bool
 }
 
-func NewWorker(username string, password string) Worker {
+func NewWorker(username string, password string, logFilms bool) Worker {
 	var channel = make(chan Event, _EVENT_BUFFER_SIZE)
 	return Worker{
 		debouncer: newDebouncer(
@@ -38,6 +39,7 @@ func NewWorker(username string, password string) Worker {
 			password,
 		),
 		channel: channel,
+		logFilms: logFilms,
 	}
 }
 
@@ -66,9 +68,18 @@ func (w *Worker) run() {
 		var err error
 
 		switch event.Action {
-		case FilmWatched, FilmUnwatched:
-			actionStr = "mark film as " + map[bool]string{true: "watched", false: "unwatched"}[event.Action == FilmWatched]
-			err = w.user.SetFilmWatched(event.ImdbId, event.Action == FilmWatched)
+		case FilmWatched:
+			// If logFilms is enabled, use LogFilmWatched instead of SetFilmWatched
+			if w.logFilms {
+				actionStr = "log film as watched"
+				err = w.user.LogFilmWatched(event.ImdbId)
+			} else {
+				actionStr = "mark film as watched"
+				err = w.user.SetFilmWatched(event.ImdbId, true)
+			}
+		case FilmUnwatched:
+			actionStr = "mark film as unwatched"
+			err = w.user.SetFilmWatched(event.ImdbId, false)
 		case FilmLogged:
 			actionStr = "log film as watched"
 			err = w.user.LogFilmWatched(event.ImdbId)
