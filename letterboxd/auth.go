@@ -3,6 +3,8 @@ package letterboxd
 import (
 	"fmt"
 	"log/slog"
+	"os"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -150,6 +152,13 @@ func (u User) isLoggedIn(page ...playwright.Page) bool {
 }
 
 func (u User) Login() error {
+	// Log the login attempt with detailed environment information
+	slog.Info("Starting Letterboxd login process", 
+		slog.String("username", u.username),
+		slog.String("browser_path", os.Getenv("PLAYWRIGHT_BROWSERS_PATH")),
+		slog.String("container_id", os.Getenv("HOSTNAME")),
+		slog.String("go_version", runtime.Version()))
+	
 	// First check if already logged in to avoid unnecessary login attempts
 	if u.isLoggedIn() {
 		slog.Info("Already logged in, skipping login process", slog.String("username", u.username))
@@ -159,8 +168,8 @@ func (u User) Login() error {
 	// Use more aggressive retry config for login attempts
 	config := RetryConfig{
 		MaxAttempts:      5,         // Try more times
-		InitialDelay:     time.Second * 2,
-		MaxDelay:         time.Second * 30,
+		InitialDelay:     time.Second * 3,  // Longer initial delay
+		MaxDelay:         time.Second * 45, // Longer max delay
 		BackoffFactor:    2.0,
 		RetryableErrors:  []ErrorType{ErrorTypeNetwork, ErrorTypeTimeout, ErrorTypeUI},
 	}
