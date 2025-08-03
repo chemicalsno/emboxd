@@ -9,9 +9,13 @@ import (
 	"github.com/playwright-community/playwright-go"
 )
 
+// Global variables for Playwright and browser instance
+var pw *playwright.Playwright
 var browser playwright.Browser
+var browserLaunchOptions playwright.BrowserTypeLaunchOptions
 
-func init() {
+// initBrowser initializes the Playwright browser with retry logic
+func initBrowser() error {
 	slog.Info("Initializing Playwright for Letterboxd integration...")
 
 	// Explicitly set the browser path to match what we set up in Dockerfile and entrypoint
@@ -36,7 +40,6 @@ func init() {
 	}
 
 	// Attempt to run Playwright with retry logic
-	var pw *playwright.Playwright
 	var runErr error
 
 	// Multiple attempts with different strategies
@@ -75,13 +78,14 @@ func init() {
 		}
 	}
 
-	// If all attempts failed, we have to panic
+	// If all attempts failed, return error
 	if runErr != nil {
-		panic("Failed to initialize Playwright after multiple attempts: " + runErr.Error())
+		return runErr
 	}
 
+	// Configure browser launch options
 	var headless = true
-	var launchOptions = playwright.BrowserTypeLaunchOptions{
+	browserLaunchOptions = playwright.BrowserTypeLaunchOptions{
 		Headless: &headless,
 		Timeout:  playwright.Float(120000), // 120 seconds timeout for browser launch
 		Args: []string{
@@ -108,14 +112,52 @@ func init() {
 		IgnoreDefaultArgs: []string{"--enable-automation"},
 	}
 
+	return launchBrowser()
+}
+
+// launchBrowser launches the Firefox browser with the configured options
+func launchBrowser() error {
 	slog.Info("Launching Firefox browser...")
-	if b, err := pw.Firefox.Launch(launchOptions); err == nil {
-		browser = b
-		slog.Info("Firefox browser launched successfully")
-	} else {
-		slog.Error("Failed to launch Firefox browser",
-			slog.String("error", err.Error()))
-		panic(err)
+	var err error
+	browser, err = pw.Firefox.Launch(browserLaunchOptions)
+	if err != nil {
+		slog.Error("Failed to launch Firefox browser", slog.String("error", err.Error()))
+		return err
+	}
+	slog.Info("Firefox browser launched successfully")
+	return nil
+}
+
+// ensureBrowserAvailable checks if the browser is available and reconnects if needed
+func ensureBrowserAvailable() bool {
+	// Check if browser is nil or closed
+	if browser == nil {
+		slog.Warn("Browser is nil, attempting to initialize")
+		if err := initBrowser(); err != nil {
+			slog.Error("Failed to initialize browser", slog.String("error", err.Error()))
+			return false
+		}
+		return true
+	}
+
+	// Check if browser is connected
+	// This is a simple check that will fail if the browser is closed
+	isConnected := browser.IsConnected()
+	if !isConnected {
+		slog.Warn("Browser appears to be closed, attempting to reconnect")
+		if err := launchBrowser(); err != nil {
+			slog.Error("Failed to reconnect browser", slog.String("error", err.Error()))
+			return false
+		}
+	}
+
+	return true
+}
+
+func init() {
+	// Initialize the browser with retry logic
+	if err := initBrowser(); err != nil {
+		panic("Failed to initialize Playwright after multiple attempts: " + err.Error())
 	}
 }
 
@@ -156,6 +198,42 @@ type User struct {
 }
 
 func (l User) newPage(url string) playwright.Page {
+	// First ensure browser is available
+	if !ensureBrowserAvailable() {
+		slog.Error("Browser is not available",
+			slog.String("username", l.username),
+			slog.String("url", url))
+		return nil
+	}
+	
+	// Create a new context if needed
+	if l.context == nil || !browser.IsConnected() {
+		slog.Info("Creating new browser context", slog.String("username", l.username))
+		context, err := browser.NewContext(playwright.BrowserNewContextOptions{
+			Viewport: &playwright.Size{
+				Width:  1920,
+				Height: 1080,
+			},
+			UserAgent: playwright.String("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"),
+			BypassCSP: playwright.Bool(true),  // Bypass Content-Security-Policy
+			IgnoreHttpsErrors: playwright.Bool(true), // Ignore HTTPS errors
+			ExtraHttpHeaders: map[string]string{
+				"Accept-Language": "en-US,en;q=0.9",
+			},
+		})
+		if err != nil {
+			slog.Error("Failed to create browser context",
+				slog.String("error", err.Error()),
+				slog.String("username", l.username))
+			return nil
+		}
+		// Update the context in the User struct
+		l.context = context
+		// Configure default timeout for context
+		l.context.SetDefaultTimeout(90000) // 90 seconds
+	}
+	
+	// Now create the page
 	var page, pageErr = l.context.NewPage()
 	if pageErr != nil {
 		slog.Error("Failed to create new page",
