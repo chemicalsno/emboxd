@@ -478,76 +478,173 @@ func (u User) fillLoginForm(page playwright.Page) error {
 
 	slog.Info("Filling login form", slog.String("username", u.username))
 	
-	// Take screenshot of the login form for debugging
+	// Take a screenshot of the login form for debugging
 	screenshotPath := "/tmp/letterboxd-login-form.png"
 	if _, err := page.Screenshot(playwright.PageScreenshotOptions{
 		Path: playwright.String(screenshotPath),
 	}); err == nil {
 		slog.Info("Saved login form screenshot", slog.String("path", screenshotPath))
 	}
+
+	// Log current URL and page title for debugging
+	currentUrl := page.URL()
+	title, _ := page.Title()
+	slog.Info("Login form page information", 
+		slog.String("url", currentUrl),
+		slog.String("title", title),
+		slog.String("username", u.username))
+
+	// Set a shorter timeout for form interactions to avoid hanging
+	originalTimeout := 30000.0 // Default to 30 seconds
+	page.SetDefaultTimeout(10000) // 10 seconds for form interactions
+	defer page.SetDefaultTimeout(originalTimeout)
+
+	// Wait for username field to be visible with multiple selectors
+	usernameSelectors := []string{
+		"input#username",
+		"input[name='username']",
+		"input[type='text'][required]",
+	}
 	
-	// Wait for username field to be visible
-	usernameLocator := page.Locator("input#username")
-	if err := usernameLocator.WaitFor(playwright.LocatorWaitForOptions{
-		State: playwright.WaitForSelectorStateVisible,
-	}); err != nil {
-		slog.Error("Username field not found or not visible", 
-			slog.String("error", err.Error()),
-			slog.String("username", u.username))
+	var usernameLocator playwright.Locator
+	var usernameFound bool
+	
+	for _, selector := range usernameSelectors {
+		tmpLocator := page.Locator(selector)
+		visible, err := tmpLocator.IsVisible()
+		if err == nil && visible {
+			usernameLocator = tmpLocator
+			usernameFound = true
+			slog.Info("Found username field", slog.String("selector", selector))
+			break
+		}
+	}
+	
+	if !usernameFound {
+		slog.Error("Username field not found or not visible", slog.String("username", u.username))
 		return &LetterboxdError{
 			Type:          ErrorTypeUI,
-			OriginalError: err,
-			Context:       map[string]interface{}{"username": u.username, "selector": "input#username"},
+			OriginalError: fmt.Errorf("username field not found"),
+			Context:       map[string]interface{}{"username": u.username},
 			Retryable:     true,
 		}
 	}
 	
 	// Fill username field
 	slog.Info("Filling username field", slog.String("username", u.username))
+	
+	// Clear the field first to ensure clean input
+	if err := usernameLocator.Click(); err != nil {
+		slog.Warn("Failed to click username field", slog.String("error", err.Error()))
+	}
+	
+	if err := usernameLocator.Fill(""); err != nil {
+		slog.Warn("Failed to clear username field", slog.String("error", err.Error()))
+	}
+	
 	if err := usernameLocator.Fill(u.username); err != nil {
 		return &LetterboxdError{
 			Type:          ErrorTypeUI,
 			OriginalError: err,
-			Context:       map[string]interface{}{"username": u.username, "selector": "input#username"},
+			Context:       map[string]interface{}{"username": u.username},
 			Retryable:     true,
 		}
 	}
 	
-	// Wait for password field to be visible
-	passwordLocator := page.Locator("input#password")
-	if err := passwordLocator.WaitFor(playwright.LocatorWaitForOptions{
-		State: playwright.WaitForSelectorStateVisible,
-	}); err != nil {
-		slog.Error("Password field not found or not visible", 
-			slog.String("error", err.Error()),
-			slog.String("username", u.username))
+	// Verify username was entered correctly
+	usernameValue, err := usernameLocator.InputValue()
+	if err == nil {
+		slog.Info("Username field value", slog.String("value", usernameValue))
+		if usernameValue != u.username {
+			slog.Warn("Username field value mismatch, retrying", 
+				slog.String("expected", u.username),
+				slog.String("actual", usernameValue))
+			
+			// Try again with a different approach
+			if err := usernameLocator.Fill(""); err == nil {
+				// Type character by character
+				for _, c := range u.username {
+					if err := usernameLocator.Type(string(c), playwright.LocatorTypeOptions{
+						Delay: playwright.Float(100), // 100ms delay between keystrokes
+					}); err != nil {
+						break
+					}
+				}
+			}
+		}
+	}
+	
+	// Wait for password field to be visible with multiple selectors
+	passwordSelectors := []string{
+		"input#password",
+		"input[name='password']",
+		"input[type='password']",
+	}
+	
+	var passwordLocator playwright.Locator
+	var passwordFound bool
+	
+	for _, selector := range passwordSelectors {
+		tmpLocator := page.Locator(selector)
+		visible, err := tmpLocator.IsVisible()
+		if err == nil && visible {
+			passwordLocator = tmpLocator
+			passwordFound = true
+			slog.Info("Found password field", slog.String("selector", selector))
+			break
+		}
+	}
+	
+	if !passwordFound {
+		slog.Error("Password field not found or not visible", slog.String("username", u.username))
 		return &LetterboxdError{
 			Type:          ErrorTypeUI,
-			OriginalError: err,
-			Context:       map[string]interface{}{"username": u.username, "selector": "input#password"},
+			OriginalError: fmt.Errorf("password field not found"),
+			Context:       map[string]interface{}{"username": u.username},
 			Retryable:     true,
 		}
 	}
 	
 	// Fill password field
 	slog.Info("Filling password field")
+	
+	// Clear the field first
+	if err := passwordLocator.Click(); err != nil {
+		slog.Warn("Failed to click password field", slog.String("error", err.Error()))
+	}
+	
+	if err := passwordLocator.Fill(""); err != nil {
+		slog.Warn("Failed to clear password field", slog.String("error", err.Error()))
+	}
+	
 	if err := passwordLocator.Fill(u.password); err != nil {
 		return &LetterboxdError{
 			Type:          ErrorTypeUI,
 			OriginalError: err,
-			Context:       map[string]interface{}{"username": u.username, "selector": "input#password"},
+			Context:       map[string]interface{}{"username": u.username},
 			Retryable:     true,
 		}
 	}
 	
 	// Try to check remember me box, but don't fail if it's not available
-	rememberLocator := page.Locator("input[name='remember']")
-	if visible, _ := rememberLocator.IsVisible(); visible {
-		if err := rememberLocator.Check(); err != nil {
-			// Non-critical error, continue with login
-			slog.Warn("Failed to check 'remember me' checkbox", 
-				slog.String("error", err.Error()),
-				slog.String("username", u.username))
+	rememberSelectors := []string{
+		"input[name='remember']",
+		"input.js-remember",
+		"input[type='checkbox']",
+	}
+	
+	for _, selector := range rememberSelectors {
+		rememberLocator := page.Locator(selector)
+		visible, err := rememberLocator.IsVisible()
+		if err == nil && visible {
+			slog.Info("Found remember checkbox", slog.String("selector", selector))
+			if err := rememberLocator.Check(); err != nil {
+				// Non-critical error, continue with login
+				slog.Warn("Failed to check 'remember me' checkbox", 
+					slog.String("error", err.Error()),
+					slog.String("username", u.username))
+			}
+			break
 		}
 	}
 	
@@ -558,6 +655,8 @@ func (u User) fillLoginForm(page playwright.Page) error {
 		"button[type=submit]",
 		"button.submit",
 		"input.submit",
+		"button:has-text('Sign in')",
+		"button:has-text('Log in')",
 	}
 	
 	var submitErr error
@@ -565,31 +664,112 @@ func (u User) fillLoginForm(page playwright.Page) error {
 	
 	for _, selector := range submitSelectors {
 		submitLocator := page.Locator(selector)
-		visible, _ := submitLocator.IsVisible()
-		if visible {
+		visible, err := submitLocator.IsVisible()
+		if err == nil && visible {
 			slog.Info("Found submit button", slog.String("selector", selector))
+			
+			// Take a screenshot before clicking
+			preClickScreenshotPath := "/tmp/letterboxd-pre-click.png"
+			if _, err := page.Screenshot(playwright.PageScreenshotOptions{
+				Path: playwright.String(preClickScreenshotPath),
+			}); err == nil {
+				slog.Info("Saved pre-click screenshot", slog.String("path", preClickScreenshotPath))
+			}
+			
+			// Try click with different options if standard click fails
 			if err := submitLocator.Click(); err == nil {
 				clicked = true
+				slog.Info("Successfully clicked submit button", slog.String("selector", selector))
 				break
 			} else {
-				submitErr = err
+				slog.Warn("Standard click failed, trying force click", 
+					slog.String("error", err.Error()),
+					slog.String("selector", selector))
+				
+				// Try force click
+				if err := submitLocator.Click(playwright.LocatorClickOptions{
+					Force: playwright.Bool(true),
+				}); err == nil {
+					clicked = true
+					slog.Info("Successfully force-clicked submit button", slog.String("selector", selector))
+					break
+				} else {
+					submitErr = err
+				}
 			}
 		}
 	}
-	
+
 	if !clicked {
+		slog.Error("Failed to find and click submit button",
+			slog.String("error", func() string {
+				if submitErr != nil && submitErr.Error() != "" {
+					return submitErr.Error()
+				}
+				return "no submit button found"
+			}()),
+			slog.String("username", u.username))
 		return &LetterboxdError{
 			Type:          ErrorTypeUI,
-			OriginalError: submitErr,
-			Context:       map[string]interface{}{"username": u.username, "selector": "submit button"},
+			OriginalError: func() error {
+				if submitErr != nil {
+					return submitErr
+				}
+				return fmt.Errorf("no submit button found")
+			}(),
+			Context:       map[string]interface{}{"username": u.username},
 			Retryable:     true,
 		}
 	}
 
-	// Wait for logged in status with multiple indicators
-	slog.Info("Waiting for successful login confirmation")
-	
-	// Try multiple ways to confirm successful login
+	// Wait for page navigation or form submission to complete
+	slog.Info("Waiting for form submission to complete")
+
+	// Wait a bit for the page to start loading after form submission
+	time.Sleep(3 * time.Second)
+
+	// Take a screenshot after form submission
+	postSubmitScreenshotPath := "/tmp/letterboxd-post-submit.png"
+	if _, err := page.Screenshot(playwright.PageScreenshotOptions{
+		Path: playwright.String(postSubmitScreenshotPath),
+	}); err == nil {
+		slog.Info("Saved post-submit screenshot", slog.String("path", postSubmitScreenshotPath))
+	}
+
+	// Log current URL and page title after submission
+	postSubmitUrl := page.URL()
+	postSubmitTitle, _ := page.Title()
+	slog.Info("Post-submission page information",
+		slog.String("url", postSubmitUrl),
+		slog.String("title", postSubmitTitle),
+		slog.String("username", u.username))
+
+	// Check for login errors first
+	errorSelectors := []string{
+		"div.form-error",
+		".error-message",
+		".alert-error",
+	}
+
+	for _, selector := range errorSelectors {
+		errorLocator := page.Locator(selector)
+		errorVisible, _ := errorLocator.IsVisible()
+		if errorVisible {
+			errorText, _ := errorLocator.TextContent()
+			slog.Error("Login form error",
+				slog.String("error", errorText),
+				slog.String("selector", selector),
+				slog.String("username", u.username))
+			return &LetterboxdError{
+				Type:          ErrorTypeAuth,
+				OriginalError: fmt.Errorf("login failed: %s", errorText),
+				Context:       map[string]interface{}{"username": u.username, "error_message": errorText},
+				Retryable:     false, // Auth errors are not retryable
+			}
+		}
+	}
+
+	// Try multiple ways to confirm successful login with shorter timeouts
 	successIndicators := []struct {
 		name     string
 		selector string
@@ -597,38 +777,65 @@ func (u User) fillLoginForm(page playwright.Page) error {
 		{"body class", "body.logged-in"},
 		{"avatar", "#avatar"},
 		{"user menu", ".user-menu"},
+		{"account link", "a[href='/settings/']"},
+		{"activity link", "a[href='/activity/']"},
+		{"watchlist link", "a[href='/films/watchlist/']"},
 	}
-	
-	// Wait a bit for the page to start loading after form submission
-	time.Sleep(2 * time.Second)
-	
-	// Check for login errors first
-	errorLocator := page.Locator("div.form-error")
-	if errorVisible, _ := errorLocator.IsVisible(); errorVisible {
-		errorText, _ := errorLocator.TextContent()
-		slog.Error("Login form error", 
-			slog.String("error", errorText),
-			slog.String("username", u.username))
-		return &LetterboxdError{
-			Type:          ErrorTypeAuth,
-			OriginalError: fmt.Errorf("login failed: %s", errorText),
-			Context:       map[string]interface{}{"username": u.username, "error_message": errorText},
-			Retryable:     false, // Auth errors are not retryable
-		}
-	}
-	
-	// Check for success indicators
+
+	// Check for success indicators with shorter timeout
 	for _, indicator := range successIndicators {
-		slog.Info("Checking login success indicator", 
+		slog.Info("Checking login success indicator",
 			slog.String("indicator", indicator.name),
 			slog.String("selector", indicator.selector))
-		
+
 		locator := page.Locator(indicator.selector)
-		if err := locator.WaitFor(playwright.LocatorWaitForOptions{
-			Timeout: playwright.Float(15000), // 15 second timeout for each indicator
-		}); err == nil {
-			slog.Info("Login successful", 
+
+		// First try a quick visibility check
+		visible, _ := locator.IsVisible()
+		if visible {
+			slog.Info("Login successful - indicator found",
 				slog.String("indicator", indicator.name),
+				slog.String("username", u.username))
+			return nil
+		}
+
+		// If not immediately visible, wait with a short timeout
+		if err := locator.WaitFor(playwright.LocatorWaitForOptions{
+			Timeout: playwright.Float(5000), // 5 second timeout for each indicator
+		}); err == nil {
+			slog.Info("Login successful - indicator appeared",
+				slog.String("indicator", indicator.name),
+				slog.String("username", u.username))
+			return nil
+		}
+	}
+
+	// Check if we're on a page that indicates successful login
+	if !strings.Contains(postSubmitUrl, "/sign-in") {
+		// We're no longer on the sign-in page, which is a good sign
+		slog.Info("No longer on sign-in page, checking page content for login status", 
+			slog.String("url", postSubmitUrl))
+		
+		// Try to get page content
+		pageContent, err := page.Content()
+		if err == nil {
+			// Check for indicators in the HTML content
+			if strings.Contains(pageContent, "logged-in") || 
+			   strings.Contains(pageContent, "sign out") || 
+			   strings.Contains(pageContent, "Sign out") {
+				slog.Info("Login successful - found logged-in indicators in page content", 
+					slog.String("username", u.username))
+				return nil
+			}
+		}
+		
+		// As a last resort, if we're redirected to the home page or a film page
+		// and not seeing any error messages, consider it a success
+		if strings.Contains(postSubmitUrl, "/film/") || 
+		   postSubmitUrl == "https://letterboxd.com/" || 
+		   postSubmitUrl == "https://letterboxd.com" {
+			slog.Info("Login likely successful - redirected to non-login page", 
+				slog.String("url", postSubmitUrl),
 				slog.String("username", u.username))
 			return nil
 		}
@@ -637,7 +844,7 @@ func (u User) fillLoginForm(page playwright.Page) error {
 	// If we get here, none of the success indicators were found
 	slog.Error("Failed to confirm successful login", slog.String("username", u.username))
 	
-	// Take screenshot of the result page for debugging
+	// Take a final screenshot of the result page for debugging
 	resultScreenshotPath := "/tmp/letterboxd-login-result.png"
 	if _, err := page.Screenshot(playwright.PageScreenshotOptions{
 		Path: playwright.String(resultScreenshotPath),
