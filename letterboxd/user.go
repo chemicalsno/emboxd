@@ -418,7 +418,12 @@ func (l *User) newPage(url string) playwright.Page {
 		}
 		
 		slog.Warn("Failed to create page, retrying",
-			slog.String("error", pageErr.Error()),
+			slog.String("error", func() string {
+				if pageErr != nil {
+					return pageErr.Error()
+				}
+				return "unknown error (nil)"
+			}()),
 			slog.String("username", l.username),
 			slog.Int("attempt", attempt))
 		
