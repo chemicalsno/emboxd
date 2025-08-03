@@ -217,6 +217,9 @@ func (u User) Login() error {
 }
 
 func (u User) directLogin() error {
+	slog.Info("Starting direct login flow", slog.String("username", u.username))
+	
+	// Use a longer timeout for initial page navigation
 	var page = u.newPage("https://letterboxd.com/sign-in/")
 	if page == nil {
 		return &LetterboxdError{
@@ -228,52 +231,94 @@ func (u User) directLogin() error {
 	}
 	defer page.Close()
 
-	if page.URL() == "https://letterboxd.com" {
-		slog.Info("Already logged in")
-		return nil
+	// Check if we're already on the homepage (already logged in)
+	currentURL := page.URL()
+	slog.Info("Current URL after navigation", 
+		slog.String("url", currentURL),
+		slog.String("username", u.username))
+	
+	if currentURL == "https://letterboxd.com" || currentURL == "https://letterboxd.com/" {
+		slog.Info("URL suggests we may already be logged in, verifying")
+		
+		// Double check we're actually logged in
+		if u.isLoggedIn(page) {
+			slog.Info("Already logged in", slog.String("username", u.username))
+			return nil
+		}
+		
+		// If not actually logged in but on homepage, navigate to login page
+		slog.Info("Not logged in but on homepage, navigating to login page")
+		if _, err := page.Goto("https://letterboxd.com/sign-in/"); err != nil {
+			return &LetterboxdError{
+				Type:          ErrorTypeNetwork,
+				OriginalError: err,
+				Context:       map[string]interface{}{"username": u.username, "url": "https://letterboxd.com/sign-in/"},
+				Retryable:     true,
+			}
+		}
 	}
 
-	// Fill out login form
-	if err := page.Locator("input#username").Fill(u.username); err != nil {
-		return &LetterboxdError{
-			Type:          ErrorTypeUI,
-			OriginalError: err,
-			Context:       map[string]interface{}{"username": u.username, "selector": "input#username"},
-			Retryable:     true,
+	// Wait for the sign in page to be ready
+	slog.Info("Waiting for sign-in page to be ready", slog.String("username", u.username))
+	
+	// Try multiple selectors to confirm we're on the login page
+	readySelectors := []string{
+		"input#username", 
+		"input[name='username']",
+		"form.signin-form",
+		"h1.title:has-text('Sign In')",
+	}
+	
+	var pageReady bool
+	for _, selector := range readySelectors {
+		locator := page.Locator(selector)
+		visible, err := locator.IsVisible()
+		if err == nil && visible {
+			pageReady = true
+			slog.Info("Login page ready", 
+				slog.String("selector", selector),
+				slog.String("username", u.username))
+			break
 		}
 	}
 	
-	if err := page.Locator("input#password").Fill(u.password); err != nil {
-		return &LetterboxdError{
-			Type:          ErrorTypeUI,
-			OriginalError: err,
-			Context:       map[string]interface{}{"username": u.username, "selector": "input#password"},
-			Retryable:     true,
+	if !pageReady {
+		slog.Warn("Login page may not be fully loaded", slog.String("username", u.username))
+		// Take a screenshot to see what we're looking at
+		screenshotPath := "/tmp/letterboxd-login-page-not-ready.png"
+		if _, err := page.Screenshot(playwright.PageScreenshotOptions{
+			Path: playwright.String(screenshotPath),
+		}); err == nil {
+			slog.Info("Saved login page screenshot", slog.String("path", screenshotPath))
 		}
 	}
-	
-	if err := page.Locator("input[name='remember']").Check(); err != nil {
-		// Non-critical error, continue with login
-		slog.Warn("Failed to check 'remember me' checkbox", 
+
+	// Use the robust fillLoginForm method
+	if err := u.fillLoginForm(page); err != nil {
+		slog.Error("Failed to fill login form", 
 			slog.String("error", err.Error()),
 			slog.String("username", u.username))
-	}
-	
-	if err := page.Locator("input[type=submit]").Click(); err != nil {
-		return &LetterboxdError{
-			Type:          ErrorTypeUI,
-			OriginalError: err,
-			Context:       map[string]interface{}{"username": u.username, "selector": "input[type=submit]"},
-			Retryable:     true,
-		}
+		return err
 	}
 
-	// Wait for logged in status
-	if err := page.Locator("body.logged-in").WaitFor(); err != nil {
-		// Check if there's a login error message
+	// Wait for successful login with a more reliable check
+	slog.Info("Checking if login was successful", slog.String("username", u.username))
+	if !u.isLoggedIn(page) {
+		// Take a screenshot to diagnose the issue
+		screenshotPath := "/tmp/letterboxd-login-failed.png"
+		if _, screenshotErr := page.Screenshot(playwright.PageScreenshotOptions{
+			Path: playwright.String(screenshotPath),
+		}); screenshotErr == nil {
+			slog.Info("Saved failed login screenshot", slog.String("path", screenshotPath))
+		}
+		
+		// Check for specific error messages
 		errorLocator := page.Locator("div.form-error")
 		if errorVisible, _ := errorLocator.IsVisible(); errorVisible {
 			errorText, _ := errorLocator.TextContent()
+			slog.Error("Login failed with error message", 
+				slog.String("error", errorText),
+				slog.String("username", u.username))
 			return &LetterboxdError{
 				Type:          ErrorTypeAuth,
 				OriginalError: fmt.Errorf("login failed: %s", errorText),
@@ -282,15 +327,17 @@ func (u User) directLogin() error {
 			}
 		}
 		
+		// No specific error message found, report generic timeout
+		slog.Error("Login timed out or failed without specific error", slog.String("username", u.username))
 		return &LetterboxdError{
 			Type:          ErrorTypeTimeout,
-			OriginalError: err,
-			Context:       map[string]interface{}{"username": u.username, "selector": "body.logged-in"},
+			OriginalError: fmt.Errorf("login verification timed out or failed"),
+			Context:       map[string]interface{}{"username": u.username, "url": page.URL()},
 			Retryable:     true,
 		}
 	}
 
-	slog.Info(fmt.Sprintf("Logged in as %s", u.username))
+	slog.Info("Successfully logged in", slog.String("username", u.username))
 	return nil
 }
 

@@ -382,20 +382,62 @@ func (l *User) newPage(url string) playwright.Page {
 	// Create a new context if needed
 	if l.context == nil {
 		slog.Info("Creating new browser context", slog.String("username", l.username))
-		context, err := browser.NewContext(playwright.BrowserNewContextOptions{
-			Viewport: &playwright.Size{
-				Width:  1920,
-				Height: 1080,
-			},
-			UserAgent: playwright.String("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"),
-			BypassCSP: playwright.Bool(true),  // Bypass Content-Security-Policy
-			IgnoreHttpsErrors: playwright.Bool(true), // Ignore HTTPS errors
-			ExtraHttpHeaders: map[string]string{
-				"Accept-Language": "en-US,en;q=0.9",
-			},
-		})
+		
+		// Retry context creation a few times if it fails
+		var context playwright.BrowserContext
+		var err error
+		for attempt := 1; attempt <= 3; attempt++ {
+			// First verify browser is still connected
+			if !browser.IsConnected() {
+				slog.Warn("Browser disconnected, attempting to reconnect", 
+					slog.String("username", l.username))
+				if err := launchBrowser(); err != nil {
+					slog.Error("Failed to reconnect browser", 
+						slog.String("error", err.Error()))
+					return nil
+				}
+			}
+			
+			context, err = browser.NewContext(playwright.BrowserNewContextOptions{
+				Viewport: &playwright.Size{
+					Width:  1366, // Smaller, more common viewport
+					Height: 768,
+				},
+				UserAgent: playwright.String("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"),
+				BypassCSP: playwright.Bool(true),  // Bypass Content-Security-Policy
+				IgnoreHttpsErrors: playwright.Bool(true), // Ignore HTTPS errors
+				JavaScriptEnabled: playwright.Bool(true),
+				ExtraHttpHeaders: map[string]string{
+					"Accept-Language": "en-US,en;q=0.9",
+					"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+					"Connection": "keep-alive",
+					"Upgrade-Insecure-Requests": "1",
+				},
+				// Set reasonable timeout 
+				TimezoneId: playwright.String("America/Los_Angeles"),
+				ColorScheme: playwright.ColorSchemeDark,
+			})
+			
+			// If successful, break the loop
+			if err == nil {
+				slog.Info("Browser context created successfully", 
+					slog.String("username", l.username),
+					slog.Int("attempt", attempt))
+				break
+			}
+			
+			slog.Error("Failed to create browser context, retrying",
+				slog.String("error", err.Error()),
+				slog.String("username", l.username),
+				slog.Int("attempt", attempt))
+				
+			// Wait before retry
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
+		
+		// Check if all attempts failed
 		if err != nil {
-			slog.Error("Failed to create browser context",
+			slog.Error("Failed to create browser context after multiple attempts",
 				slog.String("error", err.Error()),
 				slog.String("username", l.username))
 			return nil
@@ -406,14 +448,36 @@ func (l *User) newPage(url string) playwright.Page {
 		l.context.SetDefaultTimeout(90000) // 90 seconds
 	}
 	
-	// Now create the page with retry logic
+	// Now create the page with enhanced retry logic
 	var page playwright.Page
 	var pageErr error
 	
-	// Try up to 3 times to create a page
-	for attempt := 1; attempt <= 3; attempt++ {
+	// Try up to 5 times to create a page with progressively longer waits
+	for attempt := 1; attempt <= 5; attempt++ {
+		// First verify browser and context are still valid
+		if !browser.IsConnected() {
+			slog.Warn("Browser disconnected before page creation, reconnecting", 
+				slog.String("username", l.username))
+			
+			// Try to relaunch browser
+			if err := launchBrowser(); err != nil {
+				slog.Error("Failed to relaunch browser", 
+					slog.String("error", err.Error()),
+					slog.String("username", l.username))
+				return nil
+			}
+			
+			// Force context recreation
+			l.context = nil
+			return l.newPage(url) // Recursive call with fresh state
+		}
+		
+		// Try to create page
 		page, pageErr = l.context.NewPage()
 		if pageErr == nil && page != nil {
+			slog.Info("Page created successfully", 
+				slog.String("username", l.username),
+				slog.Int("attempt", attempt))
 			break
 		}
 		
@@ -427,8 +491,12 @@ func (l *User) newPage(url string) playwright.Page {
 			slog.String("username", l.username),
 			slog.Int("attempt", attempt))
 		
-		// Wait before retry
-		time.Sleep(time.Duration(attempt) * time.Second)
+		// Wait before retry with exponential backoff
+		waitTime := time.Duration(attempt * attempt) * time.Second
+		slog.Info("Waiting before retry", 
+			slog.String("username", l.username),
+			slog.Duration("wait", waitTime))
+		time.Sleep(waitTime)
 		
 		// If we've tried multiple times and still failing, recreate the context
 		if attempt >= 2 && l.context != nil {
