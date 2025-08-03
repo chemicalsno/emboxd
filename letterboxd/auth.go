@@ -32,9 +32,19 @@ func (u User) isLoggedIn(page ...playwright.Page) bool {
 		defer activePage.Close()
 	}
 
-	// First try to find user avatar which is a reliable indicator of being logged in
-	// and doesn't require checking body classes
-	slog.Info("Checking for user avatar", slog.String("username", u.username))
+	// Use a very short timeout for all login checks to avoid long waits
+	// Save current timeout
+	currentTimeout := 90000.0 // Default to 90 seconds if we can't get it
+	// Set a shorter timeout for these operations
+	activePage.SetDefaultTimeout(5000) // 5 seconds timeout for login checks
+	// Reset timeout when we're done
+	defer activePage.SetDefaultTimeout(currentTimeout)
+
+	// Check multiple indicators of being logged in
+	slog.Info("Checking login status with multiple indicators", slog.String("username", u.username))
+	
+	// 1. Check for user avatar (most reliable)
+	slog.Debug("Checking for user avatar", slog.String("username", u.username))
 	avatarLocator := activePage.Locator("#avatar")
 	avatarVisible, err := avatarLocator.IsVisible()
 	if err == nil && avatarVisible {
@@ -42,45 +52,101 @@ func (u User) isLoggedIn(page ...playwright.Page) bool {
 		return true
 	}
 
-	// Also check for the user menu which appears when logged in
-	userMenuLocator := activePage.Locator(".user-menu")
-	userMenuVisible, err := userMenuLocator.IsVisible()
-	if err == nil && userMenuVisible {
-		slog.Info("User menu found, user is logged in", slog.String("username", u.username))
-		return true
+	// 2. Check for user menu
+	slog.Debug("Checking for user menu", slog.String("username", u.username))
+	userMenuSelectors := []string{
+		".user-menu",
+		"#userpanel.has-menu",
+		".navitems li.logged-in",
+	}
+	
+	for _, selector := range userMenuSelectors {
+		userMenuLocator := activePage.Locator(selector)
+		userMenuVisible, err := userMenuLocator.IsVisible()
+		if err == nil && userMenuVisible {
+			slog.Info("User menu element found, user is logged in", 
+				slog.String("username", u.username),
+				slog.String("selector", selector))
+			return true
+		}
 	}
 
-	// Fall back to checking body class with a shorter timeout
-	slog.Info("Checking body class for logged-in status", slog.String("username", u.username))
+	// 3. Check for logged-in links that only appear when authenticated
+	slog.Debug("Checking for authenticated-only links", slog.String("username", u.username))
+	authLinks := []string{
+		"a[href='/activity/']",
+		"a[href='/films/diary/']",
+		"a[href='/films/watchlist/']",
+	}
 	
-	// Set a shorter timeout for this operation to avoid long waits
-	activePage.SetDefaultTimeout(15000) // 15 seconds timeout
-	// Reset timeout after we're done (using a fixed value since GetDefaultTimeout is not available)
-	defer activePage.SetDefaultTimeout(90000) // Reset to 90 seconds
-
-	var classes, classErr = activePage.Locator("body").GetAttribute("class")
-	if classErr != nil {
-		slog.Error("Failed to get body class attribute",
-			slog.String("error", classErr.Error()),
-			slog.String("username", u.username))
-		
-		// Check URL as a last resort
-		currentUrl := activePage.URL()
-		if strings.Contains(currentUrl, "/sign-in") {
-			slog.Info("On sign-in page, user is not logged in", slog.String("username", u.username))
-			return false
+	for _, selector := range authLinks {
+		linkLocator := activePage.Locator(selector)
+		linkVisible, err := linkLocator.IsVisible()
+		if err == nil && linkVisible {
+			slog.Info("Authenticated link found, user is logged in", 
+				slog.String("username", u.username),
+				slog.String("selector", selector))
+			return true
 		}
-		
-		// If we can't determine for sure, assume not logged in to trigger login attempt
+	}
+
+	// 4. Check body class as a fallback, but with error handling
+	slog.Debug("Checking body class as fallback", slog.String("username", u.username))
+	try := func() (bool, error) {
+		classes, err := activePage.Locator("body").GetAttribute("class")
+		if err != nil {
+			return false, err
+		}
+		return slices.Contains(strings.Split(classes, " "), "logged-in"), nil
+	}
+	
+	// Try with a timeout to avoid hanging
+	ch := make(chan bool, 1)
+	errCh := make(chan error, 1)
+	
+	go func() {
+		result, err := try()
+		if err != nil {
+			errCh <- err
+		} else {
+			ch <- result
+		}
+	}()
+	
+	// Wait with timeout
+	select {
+	case result := <-ch:
+		slog.Info("Body class check result", 
+			slog.Bool("logged_in", result), 
+			slog.String("username", u.username))
+		return result
+	case err := <-errCh:
+		slog.Error("Failed to get body class attribute",
+			slog.String("error", err.Error()),
+			slog.String("username", u.username))
+	case <-time.After(3 * time.Second):
+		slog.Warn("Body class check timed out", slog.String("username", u.username))
+	}
+	
+	// 5. Check URL as a last resort
+	currentUrl := activePage.URL()
+	if strings.Contains(currentUrl, "/sign-in") {
+		slog.Info("On sign-in page, user is not logged in", slog.String("username", u.username))
 		return false
 	}
-
-	isLoggedIn := slices.Contains(strings.Split(classes, " "), "logged-in")
-	slog.Info("Body class check result", 
-		slog.Bool("logged_in", isLoggedIn), 
+	
+	// Take a screenshot for debugging
+	screenshotPath := "/tmp/letterboxd-login-check.png"
+	if _, err := activePage.Screenshot(playwright.PageScreenshotOptions{
+		Path: playwright.String(screenshotPath),
+	}); err == nil {
+		slog.Info("Saved login check screenshot", slog.String("path", screenshotPath))
+	}
+	
+	// If we can't determine for sure, assume not logged in to trigger login attempt
+	slog.Info("Could not definitively determine login status, assuming not logged in", 
 		slog.String("username", u.username))
-		
-	return isLoggedIn
+	return false
 }
 
 func (u User) Login() error {
